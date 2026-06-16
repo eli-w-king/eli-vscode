@@ -93,6 +93,11 @@ class InputEditorDecorations extends Disposable {
 	) {
 		super();
 
+		if (!this.widget.input) {
+			// Transcript-only widgets have no input editor to decorate.
+			return;
+		}
+
 		this.registeredDecorationTypes();
 		this.triggerInputEditorDecorationsUpdate();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
@@ -432,6 +437,10 @@ class InputEditorSlashCommandMode extends Disposable {
 		private readonly widget: IChatWidget
 	) {
 		super();
+		if (!this.widget.input) {
+			// Transcript-only widgets have no input to repopulate.
+			return;
+		}
 		this._register(this.widget.onDidChangeAgent(e => {
 			if (e.slashCommand && e.slashCommand.isSticky || !e.slashCommand && e.agent.metadata.isSticky) {
 				this.repopulateAgentCommand(e.agent, e.slashCommand);
@@ -472,6 +481,11 @@ class ChatTokenDeleter extends Disposable {
 		private readonly widget: IChatWidget,
 	) {
 		super();
+
+		if (!this.widget.input) {
+			// Transcript-only widgets have no input editor to watch.
+			return;
+		}
 
 		let prevInsertTokenRange: Range | undefined;
 

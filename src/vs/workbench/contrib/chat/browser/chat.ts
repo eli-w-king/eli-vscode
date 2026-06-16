@@ -241,6 +241,20 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
+	/**
+	 * Whether to render the input part at all. Defaults to `true`. When `false`
+	 * the widget renders the transcript only (no input editor / toolbars). Used
+	 * by the Agents window to render side-by-side session columns whose input is
+	 * provided by a single shared floating input bound to the active session.
+	 */
+	renderInput?: boolean;
+	/**
+	 * Whether to render the transcript (message list). Defaults to `true`. When
+	 * `false` the widget renders the input only (no message list). Used by the
+	 * Agents window's single shared floating input, which is retargeted to the
+	 * active session's model while each column renders its own transcript.
+	 */
+	renderTranscript?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;

@@ -292,6 +292,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _visible = false;
 	get visible() { return this._visible; }
 
+	/**
+	 * Whether the input part is rendered. When `false` (via
+	 * {@link IChatWidgetViewOptions.renderInput}) the widget renders the
+	 * transcript only; input-related code paths are skipped.
+	 */
+	private get _renderInput(): boolean { return this.viewOptions.renderInput !== false; }
+
+	/**
+	 * Whether the transcript (message list) is rendered. When `false` (via
+	 * {@link IChatWidgetViewOptions.renderTranscript}) the widget renders the
+	 * input only; list-related code paths are skipped.
+	 */
+	private get _renderTranscript(): boolean { return this.viewOptions.renderTranscript !== false; }
+
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
@@ -355,6 +369,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
+		if (!this._renderInput) {
+			// Transcript-only widgets have no input to parse.
+			return { text: '', parts: [] };
+		}
 		if (this.parsedChatRequest === undefined) {
 			if (!this.viewModel) {
 				return { text: '', parts: [] };
@@ -568,11 +586,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
-				if (this.getInput() === '') {
-					this.refreshParsedInput();
-				}
-			}));
+			if (this._renderInput) {
+				r.store.add(this.inputEditor.onDidChangeModelContent(() => {
+					if (this.getInput() === '') {
+						this.refreshParsedInput();
+					}
+				}));
+			}
 			this.renderChatEditingSessionState();
 		}));
 
@@ -710,15 +730,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.height.get() + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
+		const inputHeight = this._renderInput ? this.input.height.get() : 0;
+		const listHeight = this._renderTranscript ? this.listWidget.contentHeight : 0;
+		return inputHeight + listHeight + this.chatSuggestNextWidget.height;
 	}
 
 	get scrollTop(): number {
-		return this.listWidget.scrollTop;
+		return this._renderTranscript ? this.listWidget.scrollTop : 0;
 	}
 
 	set scrollTop(value: number) {
-		this.listWidget.scrollTop = value;
+		if (this._renderTranscript) {
+			this.listWidget.scrollTop = value;
+		}
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -747,41 +771,47 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
-			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
-			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+			this._maybeCreateInput(renderFollowups, renderStyle, renderInputToolbarBelowInput);
+			this._maybeCreateListContainer();
 		} else {
-			this.listContainer = dom.append(this.container, $(`.interactive-list`));
-			dom.append(this.container, this.chatSuggestNextWidget.domNode);
-			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+			this._maybeCreateListContainer();
+			if (this._renderTranscript) {
+				dom.append(this.container, this.chatSuggestNextWidget.domNode);
+			}
+			this._maybeCreateInput(renderFollowups, renderStyle, renderInputToolbarBelowInput);
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
-		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
+		if (this._renderTranscript) {
+			this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
+		}
 
 		// Forward wheel events that target the chat container itself (the margins
 		// around the list and input) to the chat list.
-		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (e.defaultPrevented || e.target !== this.container) {
-				return;
-			}
+		if (this._renderTranscript) {
+			this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+				if (e.defaultPrevented || e.target !== this.container) {
+					return;
+				}
 
-			this.listWidget.delegateScrollFromMouseWheelEvent(e);
-		}));
+				this.listWidget.delegateScrollFromMouseWheelEvent(e);
+			}));
 
-		// Forward wheel events from the area around the chat widget (e.g. the
-		// max-width margins in the classic VS Code chat view) to the chat list.
-		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (e.defaultPrevented) {
-				return;
-			}
+			// Forward wheel events from the area around the chat widget (e.g. the
+			// max-width margins in the classic VS Code chat view) to the chat list.
+			this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+				if (e.defaultPrevented) {
+					return;
+				}
 
-			const target = e.target as Node | null;
-			if (target && dom.isAncestor(target, this.container)) {
-				return;
-			}
+				const target = e.target as Node | null;
+				if (target && dom.isAncestor(target, this.container)) {
+					return;
+				}
 
-			this.listWidget.delegateScrollFromMouseWheelEvent(e);
-		}));
+				this.listWidget.delegateScrollFromMouseWheelEvent(e);
+			}));
+		}
 
 		// Update the font family and size
 		this._register(autorun(reader => {
@@ -791,7 +821,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
 			this.container.style.fontSize = `${fontSize}px`;
 
-			if (this.visible) {
+			if (this.visible && this._renderTranscript) {
 				this.listWidget.rerender();
 			}
 		}));
@@ -801,7 +831,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Do initial render
 		if (this.viewModel) {
 			this.onDidChangeItems();
-			this.listWidget.scrollToEnd();
+			if (this._renderTranscript) {
+				this.listWidget.scrollToEnd();
+			}
 		}
 
 		this.contribs = ChatWidget.CONTRIBS.map(contrib => {
@@ -817,6 +849,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const parsedInput = observableFromEvent(this.onDidChangeParsedInput, () => this.parsedInput);
 		this._register(autorun(r => {
+			if (!this._renderInput) {
+				// No input editor: nothing to parse or sync attachments for.
+				return;
+			}
 			const input = parsedInput.read(r);
 
 			const newPromptAttachments = new Map<string, IChatRequestVariableEntry>();
@@ -847,6 +883,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	focusInput(): void {
+		if (!this._renderInput) {
+			// Transcript-only widget: focus the message list so keyboard
+			// navigation works; there is no input editor to focus.
+			this.listWidget?.focus();
+			return;
+		}
 		this.input.focus();
 
 		// Sometimes focusing the input part is not possible,
@@ -931,11 +973,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	hasInputFocus(): boolean {
-		return this.input.hasFocus();
+		return this._renderInput ? this.input.hasFocus() : false;
 	}
 
 	refreshParsedInput() {
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._renderInput) {
 			return;
 		}
 
@@ -1011,8 +1053,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._onWillMaybeChangeHeight.fire();
 
 			// Update list widget state and refresh
-			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
-			this.listWidget.refresh();
+			if (this._renderTranscript) {
+				this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
+				this.listWidget.refresh();
+			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
 				this.layoutDynamicChatTreeItemMode();
@@ -1030,7 +1074,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
 			const numItems = this.viewModel.getItems().length;
 			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
-			dom.setVisibility(numItems !== 0, this.listContainer);
+			if (this._renderTranscript) {
+				dom.setVisibility(numItems !== 0, this.listContainer);
+			}
 
 			// Show/hide the getting-started tip container based on empty state.
 			// Only use this in the standard chat layout where the welcome view is shown.
@@ -1265,7 +1311,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderFollowups(): Promise<void> {
-		const lastItem = this.listWidget.lastItem;
+		if (!this._renderInput) {
+			return;
+		}
+		const lastItem = this._renderTranscript ? this.listWidget.lastItem : this.viewModel?.getItems().at(-1);
 		if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 			this.input.renderFollowups(lastItem.replyFollowups, lastItem);
 		} else {
@@ -1543,8 +1592,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this.visibleChangeCount++;
-		this.listWidget.setVisible(visible);
-		this.input.setVisible(visible);
+		if (this._renderTranscript) {
+			this.listWidget.setVisible(visible);
+		}
+		if (this._renderInput) {
+			this.input.setVisible(visible);
+		}
 
 		if (visible) {
 			if (!wasVisible) {
@@ -1556,7 +1609,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}, 0);
 
-				this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.container), () => {
 					this._onDidShow.fire();
 				});
 			}
@@ -1584,13 +1637,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listForeground: this.styles.listForeground,
 					listBackground: this.styles.listBackground,
 				},
-				currentChatMode: () => this.input.currentModeKind,
+				currentChatMode: () => this._renderInput ? this.input.currentModeKind : ChatModeKind.Agent,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
 				location: this.location,
-				getCurrentLanguageModelId: () => this.input.currentLanguageModel,
-				getCurrentModeInfo: () => this.input.currentModeInfo,
+				getCurrentLanguageModelId: () => this._renderInput ? this.input.currentLanguageModel : undefined,
+				getCurrentModeInfo: () => this._renderInput ? this.input.currentModeInfo : undefined,
 			}
 		));
 
@@ -1869,6 +1922,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private _maybeCreateInput(renderFollowups: boolean, renderStyle?: 'compact' | 'minimal', renderInputToolbarBelowInput?: boolean): void {
+		if (this._renderInput) {
+			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+		}
+	}
+
+	private _maybeCreateListContainer(): void {
+		if (this._renderTranscript) {
+			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+		}
+	}
+
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal'; renderInputToolbarBelowInput?: boolean }): void {
 		const commonConfig: IChatInputPartOptions = {
 			renderFollowups: options?.renderFollowups ?? true,
@@ -1910,8 +1975,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			);
 			this._register(autorun(reader => {
 				this.inputPart.height.read(reader);
-				if (!this.listWidget) {
-					// This is set up before the list/renderer are created
+				if (this._renderTranscript && !this.listWidget) {
+					// This is set up before the list/renderer are created.
+					// Input-only widgets (no transcript) have no list to wait for.
 					return;
 				}
 
@@ -2088,7 +2154,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	setModel(model: IChatModel | undefined): void {
-		if (!this.container || !this.inputPart) {
+		if (!this.container || (this._renderInput && !this.inputPart)) {
 			// Widget hasn't finished rendering yet; skip rather than crash and
 			// break the session view. Caller will re-invoke once rendered.
 			this.logService.warn('ChatWidget#setModel called before render() completed');
@@ -2100,7 +2166,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
-			this.inputPart.flushInputStateToModel();
+			if (this._renderInput) {
+				this.inputPart.flushInputStateToModel();
+			}
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
@@ -2129,18 +2197,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// empty-state rendering picks a fresh, context-appropriate tip.
 		this._gettingStartedTipPartRef = undefined;
 		this._gettingStartedTipPart.clear();
-		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-		dom.clearNode(tipContainer);
-		dom.setVisibility(false, tipContainer);
+		if (this._renderInput) {
+			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
+			dom.clearNode(tipContainer);
+			dom.setVisibility(false, tipContainer);
 
-		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
-		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
-		// Pass input model reference to input part for state syncing
-		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0, model.sessionResource);
+			// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
+			// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
+			// Pass input model reference to input part for state syncing
+			this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0, model.sessionResource);
+		}
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 
-		this.listWidget.setViewModel(this.viewModel);
+		if (this._renderTranscript) {
+			this.listWidget.setViewModel(this.viewModel);
+		}
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
@@ -2148,9 +2220,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
+			if (this._renderInput) {
+				this.inputEditor.updateOptions({ placeholder });
+			}
 		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			if (this._renderInput) {
+				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			}
 		}
 
 		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately');
@@ -2166,12 +2242,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.updateWorkingProgressBorder();
 
 			// Update the editor's placeholder text when it changes in the view model
-			if (events?.some(e => e?.kind === 'changePlaceholder')) {
+			if (this._renderInput && events?.some(e => e?.kind === 'changePlaceholder')) {
 				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 			}
 
 			this.onDidChangeItems();
-			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
+			if (events?.some(e => e?.kind === 'addRequest') && this.visible && this._renderTranscript) {
 				this.listWidget.scrollToEnd();
 			}
 		})));
@@ -2251,8 +2327,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderChatSuggestNextWidget();
 		this.updateChatInputContext();
-		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
-		this.input.renderArtifactsWidget(this.viewModel.sessionResource);
+		if (this._renderInput) {
+			this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
+			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
+		}
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -2535,7 +2613,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this._onDidAcceptInput.fire();
-		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
+		if (this._renderTranscript) {
+			this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
+		}
 
 		const editorValue = this.getInput();
 		const requestInputs: IChatRequestInputOptions = {
@@ -2854,8 +2934,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			: this.inputPartMaxHeightOverride !== undefined
 				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
 				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
-		this.inputPart.setMaxHeight(inputMaxHeight);
-		this.inputPart.layout(width);
+		if (this._renderInput) {
+			this.inputPart.setMaxHeight(inputMaxHeight);
+			this.inputPart.layout(width);
+		}
 
 		this._layoutListForInputHeight();
 	}
@@ -2874,20 +2956,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
-		const inputHeight = this.inputPart.height.get();
-		const lastElementVisible = this.listWidget.isScrolledToBottom;
-		const lastItem = this.listWidget.lastItem;
-
+		const inputHeight = this._renderInput ? this.input.height.get() : 0;
 		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
-		this.listWidget.layout(contentHeight, width);
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 
-		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
-			this.listWidget.scrollToEnd();
+		if (this._renderTranscript) {
+			const lastElementVisible = this.listWidget.isScrolledToBottom;
+			const lastItem = this.listWidget.lastItem;
+
+			this.listWidget.layout(contentHeight, width);
+
+			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
+			const autoScrollForMode = this._renderInput && checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
+			if (lastElementVisible && (!lastResponseIsRendering || autoScrollForMode)) {
+				this.listWidget.scrollToEnd();
+			}
+			this.listContainer.style.height = `${contentHeight}px`;
 		}
-		this.listContainer.style.height = `${contentHeight}px`;
 
 		this._onDidChangeHeight.fire(height);
 	}
@@ -2998,7 +3084,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatModelInputState | undefined {
-		return this.input.getCurrentInputState();
+		return this._renderInput ? this.input.getCurrentInputState() : undefined;
 	}
 
 	private updateChatInputContext() {

@@ -19,9 +19,10 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory, ISharedChatInput } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { SharedChatInputView } from './sharedChatInputView.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -99,6 +100,9 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	/** Whether this view renders the transcript only (no input) for the shared-input layout. */
+	readonly isTranscriptOnly: boolean;
+
 	private readonly _widget: ChatWidget;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
@@ -115,6 +119,7 @@ export class ChatView extends AbstractChatView {
 	private _isActive = true;
 
 	constructor(
+		transcriptOnly: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -124,7 +129,9 @@ export class ChatView extends AbstractChatView {
 	) {
 		super();
 
+		this.isTranscriptOnly = transcriptOnly;
 		this.element.classList.add('chat-view-chat');
+		this.element.classList.toggle('chat-view-transcript-only', transcriptOnly);
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(
@@ -136,6 +143,7 @@ export class ChatView extends AbstractChatView {
 			ChatAgentLocation.Chat,
 			undefined,
 			{
+				renderInput: !transcriptOnly,
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
 				supportsFileReferences: true,
@@ -199,7 +207,9 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this._modelRef.value = ref;
-			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			if (!this.isTranscriptOnly) {
+				this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			}
 			this._widget.setModel(ref.object);
 		}, err => {
 			if (!token.isCancellationRequested) {
@@ -217,6 +227,10 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _applyHistoryKey(): void {
+		if (this.isTranscriptOnly) {
+			// Transcript-only views have no input; history lives on the shared input.
+			return;
+		}
 		const scopedHistory = this.configurationService.getValue<boolean>(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING) !== false;
 		this._widget.inputPart.setHistoryKey(scopedHistory ? this._historyKey : undefined);
 	}
@@ -248,6 +262,10 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override attach(uris: URI[]): void {
+		if (this.isTranscriptOnly) {
+			// No input on transcript-only views; attachments go to the shared input.
+			return;
+		}
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
 		}
@@ -279,7 +297,11 @@ export class ChatViewFactory implements IChatViewFactory {
 		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
-	createChatView(): AbstractChatView {
-		return this.instantiationService.createInstance(ChatView);
+	createChatView(transcriptOnly?: boolean): AbstractChatView {
+		return this.instantiationService.createInstance(ChatView, transcriptOnly === true);
+	}
+
+	createSharedInput(): ISharedChatInput {
+		return this.instantiationService.createInstance(SharedChatInputView);
 	}
 }

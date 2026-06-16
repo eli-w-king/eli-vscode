@@ -2248,7 +2248,7 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		this._register(autorun(reader => {
-			const chatModes = focusedWidget.read(reader)?.input.currentChatModesObs.read(reader);
+			const chatModes = focusedWidget.read(reader)?.input?.currentChatModesObs.read(reader);
 			this._syncModeActions(chatModes);
 		}));
 	}

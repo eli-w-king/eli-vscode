@@ -48,6 +48,8 @@ export class SessionHeader extends Disposable {
 	private readonly _metaRow: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
+	/** Lazily-created native-keybinding pill showing the session's focus shortcut. */
+	private _shortcutHintEl: HTMLElement | undefined;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -156,6 +158,28 @@ export class SessionHeader extends Disposable {
 
 		this._registerDragSource();
 		this._registerContextMenu();
+	}
+
+	/**
+	 * Shows or hides a small, native keybinding-style pill in the header naming
+	 * the keyboard shortcut that focuses this session (e.g. `⌘1`). Used in the
+	 * shared-input layout so switching between side-by-side sessions is
+	 * discoverable, styled to match VS Code's keybinding labels so it reads as a
+	 * built-in affordance rather than an add-on. Pass `undefined` to hide it.
+	 */
+	setShortcutHint(label: string | undefined): void {
+		if (!label) {
+			this._shortcutHintEl?.remove();
+			this._shortcutHintEl = undefined;
+			return;
+		}
+		if (!this._shortcutHintEl) {
+			this._shortcutHintEl = $('.session-shortcut-hint');
+			this._shortcutHintEl.setAttribute('aria-hidden', 'true');
+			// Sits between the title and the action cluster.
+			this._titleActionsEl.parentElement?.insertBefore(this._shortcutHintEl, this._titleActionsEl);
+		}
+		this._shortcutHintEl.textContent = label;
 	}
 
 	private _registerContextMenu(): void {

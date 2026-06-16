@@ -8,6 +8,7 @@ import type { SessionView } from '../../../browser/parts/sessionView.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -64,6 +65,13 @@ export interface ISessionsPartService {
 	 * `undefined` if no matching slot is currently mounted in the grid.
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined;
+
+	/**
+	 * Attaches the given resources as context to the active session's input.
+	 * Targets the shared input in the multi-session layout, otherwise
+	 * the active session view's own input.
+	 */
+	attachToActiveSession(uris: URI[]): void;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

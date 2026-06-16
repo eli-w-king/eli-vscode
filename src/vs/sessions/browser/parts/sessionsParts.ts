@@ -14,6 +14,7 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../services/sessions/browser/sessionsPartService.js';
 
 /**
@@ -71,6 +72,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._mainPart.getSessionView(sessionId);
+	}
+
+	attachToActiveSession(uris: URI[]): void {
+		this._mainPart.attachToActiveSession(uris);
 	}
 
 	getProgressIndicator(): IProgressIndicator {

@@ -383,7 +383,9 @@ class AddFileAsContextAction extends Action2 {
 		}
 
 		const sessionId = sessionsService.activeSession.get()?.sessionId;
-		sessionsPartService.getSessionView(sessionId)?.attach(resources);
+		if (sessionId) {
+			sessionsPartService.attachToActiveSession(resources);
+		}
 	}
 }
 

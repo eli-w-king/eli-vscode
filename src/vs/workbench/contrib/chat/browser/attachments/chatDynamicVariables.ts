@@ -45,6 +45,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	) {
 		super();
 
+		if (!this.widget.input) {
+			// Transcript-only widgets have no input editor for dynamic variables.
+			return;
+		}
+
 		this._subscribeToEditor();
 		this._register(widget.onDidChangeActiveInputEditor(() => {
 			this._subscribeToEditor();

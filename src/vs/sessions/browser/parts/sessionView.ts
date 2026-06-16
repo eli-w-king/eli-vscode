@@ -27,7 +27,14 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
  * Options passed to {@link SessionView.openSession}. Extends the chat view
  * options so they can be forwarded to the new-chat views the host creates.
  */
-export interface ISessionViewOptions extends IChatViewOptions { }
+export interface ISessionViewOptions extends IChatViewOptions {
+	/**
+	 * Whether the part is in the shared-input (multi-session) layout. When
+	 * `true`, a created-chat column renders transcript-only; its input is
+	 * provided by the single shared floating bar.
+	 */
+	readonly sharedInputMode?: boolean;
+}
 
 /**
  * A stable single-slot grid leaf that handles switching between concrete
@@ -69,6 +76,21 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
 	private _hasOpenedSession = false;
+
+	/**
+	 * Whether this view participates in the shared-input layout (multiple
+	 * sessions visible). When `true` a created-chat column renders its
+	 * transcript only; the input is provided by the single shared floating bar.
+	 * Set per {@link openSession} call rather than via an observable so toggling
+	 * it cannot re-enter the part's reconcile synchronously.
+	 */
+	private _sharedInputMode = false;
+
+	/** Tracks whether the current `'chat'` view was created transcript-only. */
+	private _currentChatTranscriptOnly: boolean | undefined;
+
+	/** Latest known status of the bound session's active chat. */
+	private _currentStatus: SessionStatus | undefined;
 
 	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
@@ -138,45 +160,71 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
-		if (this._hasOpenedSession && this._currentSession === session) {
+		const sharedInputMode = options.sharedInputMode === true;
+		if (this._hasOpenedSession && this._currentSession === session && this._sharedInputMode === sharedInputMode) {
 			return;
 		}
 		this._hasOpenedSession = true;
 		this._currentSession = session;
+		this._sharedInputMode = sharedInputMode;
 		this._openSessionDisposables.clear();
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._openSessionDisposables.add(autorun(reader => {
+			const isCreated = session !== undefined && session.isCreated.read(reader);
+			const activeChat = session?.activeChat.read(reader);
+			const status = activeChat?.status.read(reader);
+
 			let desiredKind: ChatViewKind;
-			if (session === undefined || session.isCreated.read(reader) === false) {
+			if (!isCreated) {
 				desiredKind = 'newSession';
-			} else if (session.activeChat.read(reader).status.read(reader) === SessionStatus.Untitled) {
+			} else if (status === SessionStatus.Untitled) {
 				desiredKind = 'newChatInSession';
 			} else {
 				desiredKind = 'chat';
 			}
 
-			let view = this._currentView.value;
+			// Created-chat columns render transcript-only while the shared input
+			// is active (multiple sessions visible); new-session / new-chat slots
+			// always keep their own inline input.
+			const wantTranscriptOnly = desiredKind === 'chat' && sharedInputMode;
 
-			if (!view || view.kind !== desiredKind) {
+			let view = this._currentView.value;
+			if (!view || view.kind !== desiredKind || (view.kind === 'chat' && this._currentChatTranscriptOnly !== wantTranscriptOnly)) {
 				view = desiredKind === 'chat'
-					? this.chatViewFactory.createChatView()
+					? this.chatViewFactory.createChatView(wantTranscriptOnly)
 					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
+				this._currentChatTranscriptOnly = desiredKind === 'chat' ? wantTranscriptOnly : undefined;
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);
 			}
 
-			if (session) {
-				view.setChat(session.activeChat.read(reader), session.sessionId);
+			if (session && activeChat) {
+				view.setChat(activeChat, session.sessionId);
 			}
+
+			// Drive the inactive in-progress "comet" around the header (the active
+			// session shows progress on the shared input instead).
+			this._currentStatus = status;
+			this._updateInactiveWorking();
 
 			this._header.setSession(session);
 			this._compositeBar.setSession(session);
 			this._floatingToolbar.setSession(session);
 			this._layoutChildren();
 		}));
+	}
+
+	private _updateInactiveWorking(): void {
+		const working = !this._isActive && this._currentStatus === SessionStatus.InProgress;
+		this.element.classList.toggle('inactive-working', working);
+	}
+
+	/** Whether this view currently renders a created chat transcript-only (shared-input layout). */
+	get isTranscriptOnlyChat(): boolean {
+		return this._currentChatTranscriptOnly === true;
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
@@ -297,7 +345,17 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		this._isActive = active;
 		this._applyActiveSessionStyles();
+		this._updateInactiveWorking();
 		this._currentView.value?.setActive(active);
+	}
+
+	/**
+	 * Surfaces (or clears) the keyboard shortcut that focuses this session as a
+	 * native-style pill in the header. Used by the shared-input layout to make
+	 * session switching discoverable. See {@link SessionHeader.setShortcutHint}.
+	 */
+	setShortcutHint(label: string | undefined): void {
+		this._header.setShortcutHint(label);
 	}
 
 	private _applyActiveSessionStyles(): void {

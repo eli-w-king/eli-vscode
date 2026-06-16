@@ -117,7 +117,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}));
 		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(chatSessionResource);
-			if (!widget?.input.implicitContext) {
+			if (!widget?.input?.implicitContext) {
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
@@ -274,7 +274,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
 		for (const widget of widgets) {
-			if (!widget.input.implicitContext) {
+			if (!widget.input?.implicitContext) {
 				continue;
 			}
 			const setting = this._implicitContextEnablement[widget.location];

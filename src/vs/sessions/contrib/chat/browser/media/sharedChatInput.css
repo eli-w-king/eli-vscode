@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The shared chat input used when multiple sessions are visible. It is hosted
+ * in the dock at the bottom of the sessions part (see sessionsPart.css); this
+ * rule just makes the hosted input span the dock width. */
+.shared-chat-input-view {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* The hosted chat widget is input-only (no transcript), so let it size to its
+ * content rather than stretching. */
+.shared-chat-input-view .interactive-session {
+	height: auto;
+}
+
+/* The standalone input part is normally inset by 32px to align under a centered
+ * transcript. In the full-width dock there is no transcript above it, so that
+ * inset just becomes dead whitespace — collapse it and let the dock's own
+ * padding provide a tight, even gutter. */
+.shared-chat-input-view .interactive-input-part {
+	padding: 2px 0 6px;
+}

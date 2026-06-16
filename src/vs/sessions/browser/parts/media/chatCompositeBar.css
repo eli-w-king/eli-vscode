@@ -148,6 +148,37 @@
 	margin-left: auto;
 }
 
+/* Keyboard-shortcut pill (e.g. "⌘1") shown in the header in the shared-input
+ * layout so switching between side-by-side sessions is discoverable. Styled to
+ * match VS Code's native keybinding labels so it reads as a built-in affordance.
+ * `margin-left: auto` pushes it to the right so it clusters with the action
+ * buttons rather than crowding the title. */
+.session-header-bar .session-shortcut-hint {
+	flex-shrink: 0;
+	margin-left: auto;
+	padding: 2px 6px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	line-height: 14px;
+	font-weight: var(--vscode-agents-fontWeight-regular, 400);
+	color: var(--vscode-keybindingLabel-foreground);
+	background: var(--vscode-keybindingLabel-background);
+	border: 1px solid var(--vscode-keybindingLabel-border);
+	border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+	box-shadow: inset 0 -1px 0 var(--vscode-keybindingLabel-bottomBorder);
+	opacity: 0.7;
+	user-select: none;
+	white-space: nowrap;
+	transition: opacity 0.15s ease;
+}
+
+/* Bring the active column's shortcut fully forward; keep inactive ones quiet
+ * until the column is hovered (a hint that they are switch targets). */
+.session-view.is-active .session-header-bar .session-shortcut-hint,
+.session-view:hover .session-header-bar .session-shortcut-hint {
+	opacity: 1;
+}
+
 /* Meta row: workspace · branch · diff stats */
 .chat-composite-bar-meta-row {
 	display: flex;
