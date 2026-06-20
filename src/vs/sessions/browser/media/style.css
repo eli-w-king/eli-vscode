@@ -176,10 +176,12 @@
 
 /* Reveal the frost layer through the otherwise-gray title bar and grid. The
  * title bar is nested inside the workbench grid (not a direct child), so this is
- * a descendant selector. */
+ * a descendant selector. The title bar paints its background from the theme as
+ * an inline style, so `!important` is required to override it (matching the
+ * older `.shell-gradient-background` transparency rules). */
 .monaco-workbench.mac.agent-sessions-workbench .part.titlebar,
 .monaco-workbench.mac.agent-sessions-workbench .monaco-grid-view {
-	background-color: transparent;
+	background-color: transparent !important;
 }
 
 /* Frost-friendly session-list selection. The default list hover/focus/selection
