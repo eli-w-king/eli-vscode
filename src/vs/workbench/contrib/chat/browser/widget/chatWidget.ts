@@ -317,9 +317,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		name: string;
 		prefix: string;
 		displayName: string;
+		agentHostProviderId?: string;
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
+	private readonly _chatIsAgentHostSessionContextKey: IContextKey<boolean>;
+	private readonly _chatAgentHostProviderIdContextKey: IContextKey<string>;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -449,6 +452,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
+		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
+		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -1029,7 +1034,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		if (this._lockedAgent) {
-			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id);
+			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id, this._lockedAgent.agentHostProviderId);
 		} else {
 			this.unlockFromCodingAgent();
 		}
@@ -1755,13 +1760,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-				if (currentElement.modelId) {
-					this.input.switchModelByIdentifier(currentElement.modelId);
-				}
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
 				this.inputPart.element.classList.add('editing');
+			}
+			if (currentElement.modelId) {
+				this.input.switchModelByIdentifier(currentElement.modelId);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);
@@ -2371,8 +2376,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	lockToCodingAgent(name: string, displayName: string, agentId: string): void {
-		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName) {
+	lockToCodingAgent(name: string, displayName: string, agentId: string, agentHostProviderId?: string): void {
+		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName && this._lockedAgent.agentHostProviderId === agentHostProviderId) {
 			return;
 		}
 
@@ -2380,10 +2385,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			id: agentId,
 			name,
 			prefix: `@${name} `,
-			displayName
+			displayName,
+			agentHostProviderId
 		};
 		this._lockedToCodingAgentContextKey.set(true);
 		this._lockedCodingAgentIdContextKey.set(agentId);
+		this._chatIsAgentHostSessionContextKey.set(!!agentHostProviderId);
+		this._chatAgentHostProviderIdContextKey.set(agentHostProviderId ?? '');
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2404,6 +2412,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._lockedCodingAgentIdContextKey.set('');
+		this._chatIsAgentHostSessionContextKey.set(false);
+		this._chatAgentHostProviderIdContextKey.set('');
 		this._chatSessionSupportsForkContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
@@ -2494,9 +2504,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The advanced autopilot goal banner is only supported in the local chat
+		// harness. Agent-host backed sessions (Copilot CLI, Claude, Codex and the
+		// local/remote agent hosts) must never render it.
+		const sessionResource = this.viewModel?.model.sessionResource;
+		const isLocalHarness = !!sessionResource && getChatSessionType(sessionResource) === localChatSessionType;
 		const permissionLevel = inputPart.currentModeInfo?.permissionLevel;
 		const goalModeOn = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) === true;
-		if (permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
+		if (!isLocalHarness || permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
 			this._cancelGoalSummary();
 			inputPart.clearGoalBanner();
 			return;

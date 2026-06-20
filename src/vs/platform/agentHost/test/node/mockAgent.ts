@@ -48,7 +48,7 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[] }[] = [];
+	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[]; chat?: URI }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -120,8 +120,10 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt, attachments });
+	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
+		// Only record `chat` when defined so existing single-chat assertions
+		// that compare against `{ session, prompt, attachments }` still match.
+		this.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
@@ -483,6 +485,55 @@ export class ScriptedMockAgent implements IAgent {
 					if (approved) {
 						this._fireSequence([
 							_toolComplete(session, sessionStr, tid, 'tc-shell-deny-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true }),
+							_idle(session, sessionStr, tid),
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'orphan-confirmation': {
+				// Regression scenario for a `pending_confirmation` that
+				// arrives without an active protocol turn (the session would
+				// otherwise hang forever). Reproduces a hook-triggered
+				// continuation that runs *after* the protocol turn has
+				// already completed:
+				//   1. A tool runs and the turn completes — the state manager
+				//      no longer has an active turn.
+				//   2. The continuation dispatches a new tool with an empty
+				//      turnId and emits `pending_confirmation` while there is
+				//      no active turn.
+				// The read targets a path inside the working directory, so the
+				// host auto-approves it and calls `respondToPermissionRequest`,
+				// which resolves the callback below and lets the session
+				// continue. Without the fix the signal is dropped, the callback
+				// never fires, and the session hangs.
+				(async () => {
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, tid, 'tc-orphan-initial', 'bash', 'Run Command', 'Run command')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_toolComplete(session, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
+					await timeout(5);
+					// Complete the turn — the state manager clears the active turn.
+					this._onDidSessionProgress.fire(_idle(session, sessionStr, tid));
+
+					// Hook-triggered continuation: a new tool starts with an
+					// empty turnId and `pending_confirmation` arrives while
+					// there is no active turn.
+					await timeout(10);
+					for (const s of _toolStart(session, sessionStr, '', 'tc-orphan', 'view', 'Read', 'Read file')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+				})();
+				this._pendingPermissions.set('tc-orphan', (approved) => {
+					if (approved) {
+						this._fireSequence([
+							_toolComplete(session, sessionStr, tid, 'tc-orphan', { pastTenseMessage: 'Read file', content: [{ type: ToolResultContentType.Text, text: 'contents' }], success: true }),
+							_markdown(session, sessionStr, tid, 'continued-after-hook'),
 							_idle(session, sessionStr, tid),
 						]);
 					}
