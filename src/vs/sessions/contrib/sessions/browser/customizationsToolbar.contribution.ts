@@ -18,7 +18,7 @@ import { AICustomizationManagementEditorInput } from '../../../../workbench/cont
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, aiCustomizationViewIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -310,6 +310,48 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Single entry point to the Agent Customizations overview. Replaces the
+ * bottom-left sidebar "Customizations" section: a single sparkle icon in the
+ * Sessions sidebar header opens the full customizations editor on its welcome
+ * (overview) page, from which every section (Agents, Skills, Instructions,
+ * Hooks, MCP Servers, Plugins) is reachable.
+ */
+export class OpenAgentCustomizationsAction extends Action2 {
+	static readonly ID = 'workbench.action.agentOpenCustomizations';
+
+	constructor() {
+		super({
+			id: OpenAgentCustomizationsAction.ID,
+			title: localize2('openAgentCustomizations', "Customizations"),
+			icon: aiCustomizationViewIcon,
+			f1: true,
+			menu: [{
+				id: Menus.SidebarSessionsHeader,
+				group: 'navigation',
+				order: 5,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionResource = sessionsService.activeSession.get()?.resource;
+		if (sessionResource) {
+			harnessService.setActiveSession(sessionResource);
+		}
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (pane instanceof AICustomizationManagementEditor) {
+			pane.showWelcomePage();
+		}
+	}
+}
+
+registerAction2(OpenAgentCustomizationsAction);
 
 /**
  * Returns the harness id that matches a given session, or `undefined` if no

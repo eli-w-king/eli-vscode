@@ -451,6 +451,7 @@ import './browser/parts/sessionsParts.js';
 import './services/sessions/browser/sessionsService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
+import './browser/sessionsDisabledCommands.contribution.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';

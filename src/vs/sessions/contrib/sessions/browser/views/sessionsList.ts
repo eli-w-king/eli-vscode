@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -34,7 +34,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -125,7 +125,7 @@ const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 //#region Tree Delegate
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
-	private static readonly ITEM_HEIGHT = 54;
+	private static readonly ITEM_HEIGHT = 32;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -340,140 +340,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.set(titleText, matches);
 		}));
 
-		// Details row — reactive: badge · diff stats · time
-		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
-		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
-		template.elementDisposables.add(autorun(reader => {
-			const sessionStatus = element.status.read(reader);
-			const changes = element.changes.read(reader);
-			const changesSummary = element.changesSummary?.read(reader);
-			const workspace = element.workspace.read(reader);
-			const description = element.description.read(reader);
-			let timeDate: Date | undefined;
-
-			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
-			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
-
-			if (!hideDetails) {
-				timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
-			}
-			// Clear and rebuild details row
-			DOM.clearNode(template.detailsRow);
-			const parts: HTMLElement[] = [];
-
-			if (sessionStatus !== SessionStatus.InProgress) {
-				const isWorkspaceSession = workspace &&
-					workspace.folders.length > 0 &&
-					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
-				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
-			}
-
-			// Workspace badge — show when not grouped by workspace,
-			// or when the session is pinned/archived (their section headers
-			// don't carry the workspace name)
-			if (!hideDetails && workspace && (
-				this.options.grouping() !== SessionsGrouping.Workspace ||
-				this.options.isPinned(element) ||
-				element.isArchived.read(reader)
-			)) {
-				const badgeLabel = this.getWorkspaceBadgeLabel(workspace);
-				if (badgeLabel) {
-					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
-					badgeEl.textContent = badgeLabel;
-					parts.push(badgeEl);
-				}
-			}
-
-			// Diff stats
-			if (!hideDetails && (changesSummary || changes.length > 0)) {
-				let insertions = 0, deletions = 0;
-
-				if (changesSummary) {
-					insertions = changesSummary.additions;
-					deletions = changesSummary.deletions;
-				} else if (changes.length > 0) {
-					for (const change of changes) {
-						insertions += change.insertions;
-						deletions += change.deletions;
-					}
-				}
-
-				if (insertions > 0 || deletions > 0) {
-					if (parts.length > 0) {
-						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-					}
-					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
-					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
-					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${deletions}`;
-					parts.push(diffEl);
-				}
-			}
-
-			// Status description
-			if (sessionStatus === SessionStatus.InProgress) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-				} else {
-					descriptionDisposable.clear();
-					statusEl.textContent = localize('working', "Working...");
-				}
-				parts.push(statusEl);
-			} else if (sessionStatus === SessionStatus.NeedsInput) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-				} else {
-					descriptionDisposable.clear();
-					statusEl.textContent = localize('needsInput', "Input needed");
-				}
-				parts.push(statusEl);
-			} else if (sessionStatus === SessionStatus.Error) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-				} else {
-					descriptionDisposable.clear();
-					statusEl.textContent = localize('failed', "Failed");
-				}
-				parts.push(statusEl);
-			} else {
-				descriptionDisposable.clear();
-			}
-
-			// Timestamp — visible when not hiding details
-			if (!hideDetails && timeDate) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-				const definiteTimeDate = timeDate;
-				const formatTime = () => {
-					const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
-					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
-				};
-				timeEl.textContent = formatTime();
-				const targetWindow = DOM.getWindow(timeEl);
-				const interval = targetWindow.setInterval(() => {
-					timeEl.textContent = formatTime();
-				}, 60_000);
-				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
-			} else {
-				timeDisposable.clear();
-			}
-		}));
+		// Custom agents window: the row shows only the title plus the status
+		// icon/dot. The folder/worktree icon, workspace badge, diff stats,
+		// timestamp, and the textual status (Working… / Input needed / Failed)
+		// are intentionally omitted — the status icon already conveys progress —
+		// so the list stays compact at one line per session. The (empty) details
+		// row element is retained for layout/template stability.
 
 		// Approval row — reactive
 		if (this.approvalModel) {
@@ -541,19 +413,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
-	}
-
-	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
-		// For GitHub remote sessions, extract owner/name from the repository URI path
-		const folder = workspace.folders[0];
-		if (folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = folder.root.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				return `${parts[0]}/${parts[1]}`;
-			}
-		}
-
-		return workspace.label;
 	}
 
 

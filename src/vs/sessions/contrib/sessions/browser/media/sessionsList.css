@@ -91,7 +91,7 @@
 	flex-direction: row;
 	height: 100%;
 	box-sizing: border-box;
-	padding: 8px 6px 8px 12px;
+	padding: 7px 6px 7px 12px;
 
 	&.archived {
 		color: var(--vscode-descriptionForeground);
@@ -154,7 +154,6 @@
 
 	.session-title-row {
 		line-height: 17px;
-		padding-bottom: 4px;
 	}
 
 	.session-details-row {

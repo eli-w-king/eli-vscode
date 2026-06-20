@@ -147,10 +147,60 @@
 	background: var(--vscode-agents-background) !important;
 }
 
+/* ---- macOS vibrancy: frosted shell + sidebar ----
+ *
+ * On macOS the agents window is created with a native vibrancy material behind
+ * it (see `defaultBrowserWindowOptions` / the `vibrancy: 'under-window'` override
+ * for the sessions window) and a transparent window background.
+ *
+ * Goal: every *gray* surface (the shell, the title bar, the sessions sidebar and
+ * its Customizations footer) becomes a frosted, blurred view of whatever is
+ * behind the window, while every *white* surface (the session columns and the
+ * Changes/Files panel) stays solid for readability.
+ *
+ * The workbench root is the single translucent "frost" layer. The title bar and
+ * the workbench grid both paint their own opaque gray normally; here they are
+ * made fully transparent so they reveal the one frost layer underneath (rather
+ * than stacking several translucent layers, which would compound and look
+ * muddy). The session columns and auxiliary bar keep their own solid card
+ * backgrounds, so they stay white.
+ *
+ * Scoped to `.mac` so it only applies where the native vibrancy actually exists;
+ * Windows/Linux agents windows stay fully opaque. */
+.monaco-workbench.mac.agent-sessions-workbench {
+	/* Tint over the native frost. The percentage controls translucency: lower =
+	 * more see-through, higher = more solid. Kept low so the blurred backdrop
+	 * reads clearly while sidebar text stays legible. */
+	background-color: color-mix(in srgb, var(--vscode-agents-background) 30%, transparent);
+}
+
+/* Reveal the frost layer through the otherwise-gray title bar and grid. The
+ * title bar is nested inside the workbench grid (not a direct child), so this is
+ * a descendant selector. */
+.monaco-workbench.mac.agent-sessions-workbench .part.titlebar,
+.monaco-workbench.mac.agent-sessions-workbench .monaco-grid-view {
+	background-color: transparent;
+}
+
+/* Frost-friendly session-list selection. The default list hover/focus/selection
+ * fills are near-opaque grays that mute the frost and read as inconsistent
+ * patches over the vibrancy. Replace them with a very subtle, theme-aware
+ * translucent overlay (dark in light themes, light in dark themes) so the whole
+ * sessions list stays uniformly frosted while selection is still legible. */
+.monaco-workbench.mac.agent-sessions-workbench .part.sidebar .monaco-list-row:has(.session-item):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
+}
+
+.monaco-workbench.mac.agent-sessions-workbench .part.sidebar .monaco-list:focus .monaco-list-row:has(.session-item).focused,
+.monaco-workbench.mac.agent-sessions-workbench .part.sidebar .monaco-list-row:has(.session-item).selected {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
 .agent-sessions-workbench .part.sessionspart {
 	margin: 0 4px 4px 10px;
 	background: var(--part-background);
-	border: 1px solid var(--part-border-color, transparent);
+	/* Borderless, flat cards: no hairline border and no drop shadow. */
+	border: 1px solid transparent;
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 }
@@ -180,7 +230,7 @@
 	 */
 	margin: 0 0 4px 4px;
 	background: var(--vscode-agentsPanel-background);
-	border: 1px solid var(--vscode-agentsPanel-border, transparent);
+	border: 1px solid transparent;
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
@@ -396,7 +446,7 @@
 	margin: 0 0 5px 0;
 	padding-left: 5px;
 	background: var(--part-background);
-	border: 1px solid var(--part-border-color, transparent);
+	border: 1px solid transparent;
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
 	border-top-right-radius: 8px;
@@ -468,10 +518,13 @@
 	background: var(--vscode-scrollbarSlider-activeBackground);
 }
 
+/* Light theme previously drew a hairline border on the cards; the soft drop
+ * shadow (see `--agents-card-shadow`) now provides their separation, so keep the
+ * border transparent here too. */
 .monaco-workbench.vs.agent-sessions-workbench .part.sessionspart,
 .monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
-	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-color: transparent;
 }
 
 /* ---- Chat Layout ---- */
