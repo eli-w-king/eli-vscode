@@ -24,3 +24,18 @@
 .shared-chat-input-view .interactive-input-part {
 	padding: 2px 0 6px;
 }
+
+/* The docked input floats as its own card below the session cards: give the
+ * input container a solid card background + rounded corners so it stays legible
+ * over the (possibly frosted/translucent) shell behind the dock. */
+.shared-chat-input-view .interactive-session .chat-input-container {
+	background-color: var(--vscode-input-background, var(--vscode-agentsPanel-background));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Progress is shown on the session card border (blue active / black inactive),
+ * not on the docked input — so suppress the input's own working comet. */
+.shared-chat-input-view .interactive-session .chat-input-container.working::before,
+.shared-chat-input-view .interactive-session .chat-input-container.working::after {
+	display: none;
+}

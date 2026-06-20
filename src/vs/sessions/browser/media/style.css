@@ -200,8 +200,10 @@
 
 .agent-sessions-workbench .part.sessionspart {
 	margin: 0 4px 4px 10px;
-	background: var(--part-background);
-	/* Borderless, flat cards: no hairline border and no drop shadow. */
+	/* Transparent so the gaps between the session cards (and the area around the
+	 * docked input card) reveal the shell / frost behind the part. The session
+	 * cards and the input card paint their own solid backgrounds. */
+	background: transparent;
 	border: 1px solid transparent;
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;

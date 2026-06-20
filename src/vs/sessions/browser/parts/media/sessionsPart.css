@@ -131,20 +131,20 @@
 }
 
 /* ------------------------------------------------------------------------- *
- * Shared docked chat input (multi-session layout)
+ * Docked chat input (panelized layout)
  *
- * When multiple sessions are visible side-by-side, a single input is docked as
- * a flush full-width footer at the bottom of the part. It reserves real layout
- * space (the session columns shrink to sit above it) rather than floating over
- * the transcripts, blends with the column background, and is separated only by
- * a 1px top border. Position and size are set in
- * `SessionsPart._layoutContentAndDock`.
+ * Every created-chat column renders transcript-only and shares a single input
+ * docked at the bottom of the part. The dock itself is a transparent, centered
+ * flex container; the hosted input keeps its own rounded background so it reads
+ * as its own floating card below the session cards. A gap above it (the session
+ * cards' own bottom inset) separates it from the panels. Position and size are
+ * set in `SessionsPart._layoutContentAndDock`.
  * ------------------------------------------------------------------------- */
 
-/* The content area stacks the session grid above the docked shared input. Using
- * a flex column (rather than absolutely positioning the dock) means the grid
- * element is physically constrained to the space above the dock, so the grid's
- * full-height column separator (sash) can never bleed down through the input. */
+/* The content area stacks the session grid above the docked input. Using a flex
+ * column (rather than absolutely positioning the dock) means the grid element is
+ * physically constrained to the space above the dock, so the grid's column
+ * separator can never bleed down through the input. */
 .monaco-workbench .part.sessionspart > .content {
 	position: relative;
 	display: flex;
@@ -165,32 +165,14 @@
 	display: flex;
 	flex-direction: column;
 	/* Cap the hosted input to a comfortable composer width and center it so it
-	 * does not stretch into a sparse full-width bar. */
+	 * floats as its own card rather than stretching full width. */
 	align-items: center;
-	/* Horizontal padding here must match SessionsPart.SHARED_INPUT_PADDING_H. */
-	padding: 0 12px;
-	background: var(--vscode-agentsPanel-background);
-	border-top: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
+	/* Horizontal padding here must match SessionsPart.SHARED_INPUT_PADDING_H.
+	 * The bottom padding keeps the input card off the part's bottom edge. */
+	padding: 0 12px 6px;
+	background: transparent;
 }
 
 .monaco-workbench .part.sessionspart .sessions-shared-input-dock.hidden {
 	display: none;
-}
-
-/* Accent strip overlaying the dock's 1px top border, sized and positioned (in
- * SessionsPart._alignSharedInputAccent) to span the active column so the input
- * reads as connected to that session. */
-.monaco-workbench .part.sessionspart .sessions-shared-input-dock__accent {
-	position: absolute;
-	top: -1px;
-	height: 2px;
-	background: var(--vscode-focusBorder);
-	pointer-events: none;
-	transition: left 0.15s ease, width 0.15s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.monaco-workbench .part.sessionspart .sessions-shared-input-dock__accent {
-		transition: none;
-	}
 }

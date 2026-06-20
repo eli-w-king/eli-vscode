@@ -4,14 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* ------------------------------------------------------------------------- *
- * Active vs inactive session columns (multi-session layout)
+ * Session cards (panelized layout)
  *
- * In the side-by-side layout the per-column inputs are replaced by a single
- * shared input docked at the bottom. To make it obvious which session that
- * input is talking to, the active column gets an accent bar along its top edge
- * and the inactive columns are strongly receded. Scoped to `.shared-input-mode`
- * so a lone session column is never accented or dimmed.
+ * Each session view is a rounded card. The gap between neighbouring cards (and
+ * to the part edges) is created in `SessionView.layout` by insetting the element
+ * within its grid leaf; here we only give it the card shape. The single docked
+ * input lives below the cards as its own card (see sessionsPart.css), and the
+ * in-progress "comet" is drawn around the card border — blue while the card is
+ * the active session, black while inactive.
  * ------------------------------------------------------------------------- */
+
+.session-view {
+	box-sizing: border-box;
+	border: 1px solid transparent;
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
 
 /* Session header, tabs, and chat content are all hosted in this centered
  * inner container so alignment is controlled in one place. */
@@ -29,45 +37,42 @@
 	}
 }
 
-/* Active column: an accent bar along the top edge, drawn as an inset box-shadow
- * so it never shifts layout or the grid sash. Makes it obvious which column the
- * shared input is talking to. */
-.session-view.shared-input-mode.is-active {
-	box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder);
-}
-
-/* Strongly recede inactive columns so the active one clearly stands out. */
-.session-view.shared-input-mode:not(.is-active) .session-view-centered-content,
-.session-view.shared-input-mode:not(.is-active) .session-view-content {
-	opacity: 0.45;
+/* In the side-by-side layout, give the active card a quiet persistent border so
+ * it stays identifiable even when idle. Scoped to `.multi-session` because a
+ * lone card is trivially the active one. The working comet overrides this. */
+.session-view.multi-session.is-active {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent);
 }
 
 /* ------------------------------------------------------------------------- *
- * Inactive in-progress "comet" border
+ * In-progress "comet" border around the card
  *
- * When an inactive session is working, the looping comet that normally travels
- * around the chat input is drawn around its header instead (the active session
- * shows progress on the shared floating input). Reuses the global
- * `chat-input-working-border-spin` keyframes and `--chat-input-anim-angle`
- * custom property declared in the workbench chat styles.
+ * While a session is working, a looping comet travels around its card border.
+ * The colour is overridden per state via `--chat-input-working-border-color1`
+ * (reused from the workbench chat styles): blue when this is the active session,
+ * black when it is an inactive side-by-side session. Reuses the global
+ * `chat-input-working-border-spin` keyframes + `--chat-input-anim-angle`.
  * ------------------------------------------------------------------------- */
-.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar {
-	position: relative;
-	overflow: visible;
+.session-view.working {
+	--chat-input-working-border-color1: rgba(0, 0, 0, 0.55);
 }
 
-.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar::before,
-.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar::after {
+.session-view.working.is-active {
+	--chat-input-working-border-color1: var(--vscode-focusBorder);
+}
+
+.session-view.working::before,
+.session-view.working::after {
 	content: '';
 	position: absolute;
-	inset: -3px;
-	border-radius: 10px;
+	inset: 0;
+	border-radius: inherit;
 	padding: 1px;
 	background: conic-gradient(from var(--chat-input-anim-angle, 135deg),
 		transparent 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
-		var(--vscode-chat-inputWorkingBorderColor1) 30deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+		color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
+		var(--chat-input-working-border-color1) 30deg,
+		color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
 		transparent 90deg,
 		transparent 360deg);
 	-webkit-mask:
@@ -79,16 +84,18 @@
 	-webkit-mask-composite: xor;
 	mask-composite: exclude;
 	pointer-events: none;
+	z-index: 5;
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration, 4s) linear infinite;
 }
 
-.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar::after {
+.session-view.working::after {
+	padding: 2px;
 	filter: blur(1.5px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar::before,
-	.session-view.inactive-working .session-view-centered-content .chat-composite-bar.session-header-bar::after {
+	.session-view.working::before,
+	.session-view.working::after {
 		animation: none;
 	}
 }

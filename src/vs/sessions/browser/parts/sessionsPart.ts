@@ -18,13 +18,13 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getWindow, isAncestor, scheduleAtNextAnimationFrame, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { URI } from '../../../base/common/uri.js';
 import { SessionStatus, IChat } from '../../services/sessions/common/session.js';
 import { IChatViewFactory, ISharedChatInput } from '../../services/chatView/browser/chatViewFactory.js';
 import { SessionView } from './sessionView.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -98,29 +98,18 @@ export class SessionsPart extends Part {
 	private _progressIndicator: IProgressIndicator | undefined;
 
 	/**
-	 * The single shared chat input shown when multiple sessions are visible
-	 * side-by-side. It is docked as a solid box at the bottom of the part and is
-	 * retargeted to the active session's chat. `undefined` until the content area
-	 * is created.
+	 * The single docked chat input. Every created-chat column renders its
+	 * transcript only and shares this one input, which is retargeted to the
+	 * active session's chat. It floats as a card at the bottom of the part.
+	 * `undefined` until the content area is created.
 	 */
 	private _sharedInput: ISharedChatInput | undefined;
 	private _sharedInputDock: HTMLElement | undefined;
-	/** Accent strip on the dock's top edge, aligned under the active column. */
-	private _sharedInputAccent: HTMLElement | undefined;
-	/** Pending animation-frame handle for re-aligning the accent after a layout. */
-	private readonly _accentAlign = this._register(new MutableDisposable());
-	/** Observes the active column so the accent re-aligns when columns resize
-	 * (e.g. the Changes/Files panel opens) without a sessions-part relayout. */
-	private readonly _activeColumnResize = this._register(new MutableDisposable<IDisposable>());
 	/** Title last announced to screen readers, to avoid redundant announcements. */
 	private _sharedInputLabelTitle: string | undefined;
-	/** The active session's view element, used to align the dock accent under it. */
-	private _activeSlotElement: HTMLElement | undefined;
 	private _sharedInputVisible = false;
 	/** Reconciliation-scoped binding of the active session to the shared input. */
 	private readonly _sharedInputBinding = this._register(new MutableDisposable());
-	/** Whether more than one session is currently visible (shared-input layout). */
-	private _sharedMode = false;
 	/** The currently active session, as last reported by {@link updateVisibleSessions}. */
 	private _activeSession: IActiveSession | undefined;
 	/** Width of the content area at the last layout, used to size the docked input. */
@@ -253,21 +242,14 @@ export class SessionsPart extends Part {
 		};
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
 
-		// Single shared chat input, docked at the bottom of the grid. Hosted here
-		// (not in a session view) so it spans the whole part while being retargeted
-		// to the active session. The dock is created up front but the (heavier)
-		// input widget is created lazily the first time it is shown so it does not
-		// run during workbench layout initialization.
+		// Single docked chat input, hosted at the bottom of the grid (not in a
+		// session view) so it spans the whole part while being retargeted to the
+		// active session. The dock is created up front but the (heavier) input
+		// widget is created lazily the first time it is shown so it does not run
+		// during workbench layout initialization.
 		this._sharedInputDock = $('.sessions-shared-input-dock.hidden');
 		this._sharedInputDock.setAttribute('role', 'region');
 		this._sharedInputDock.setAttribute('aria-label', localize('sharedInput.region', "Shared chat input"));
-
-		// A thin accent strip on the dock's top edge is positioned and sized to
-		// match the active column, visually connecting the input to the session it
-		// targets without a noisy text label. The hosted input widget is appended
-		// after this strip in `_ensureSharedInput`.
-		this._sharedInputAccent = $('.sessions-shared-input-dock__accent');
-		this._sharedInputDock.appendChild(this._sharedInputAccent);
 		contentArea.appendChild(this._sharedInputDock);
 
 		return contentArea;
@@ -315,43 +297,36 @@ export class SessionsPart extends Part {
 		}
 
 		// Rebind each slot to its session by position (or to undefined placeholder).
-		// A session is shown side-by-side (shared-input layout) when more than one
-		// session is visible; in that case created-chat columns render
-		// transcript-only and the single shared input provides the editor. The
-		// mode is passed through openSession (not a separate observable setter) so
-		// toggling it cannot re-enter this reconcile synchronously.
-		const sharedMode = visible.length > 1;
-		this._sharedMode = sharedMode;
+		// The docked input is the composer for every created-chat column, so those
+		// columns always render transcript-only (`sharedInputMode: true`). The mode
+		// is passed through openSession (not a separate observable setter) so
+		// toggling it cannot re-enter this reconcile synchronously. New-session and
+		// new-chat-in-session slots keep their own inline composer regardless.
+		const multiSession = visible.length > 1;
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
 			const session = visible[i];
 			slot.boundSessionId = session?.sessionId;
-			slot.view.openSession(session, { renderSessionTypePickerInControls: this._renderSessionTypePickerInControls, sharedInputMode: sharedMode });
+			slot.view.openSession(session, { renderSessionTypePickerInControls: this._renderSessionTypePickerInControls, sharedInputMode: true });
 		}
 
-		// Mark the active session's element for styling/focus indication. The
-		// `shared-input-mode` class scopes the active accent + inactive dimming to
-		// the side-by-side layout so a lone session column is never accented or
-		// receded. Set here (alongside `is-active`) so both are applied reliably
-		// on every reconcile, independent of the per-view openSession dedup.
+		// Mark the active session's element. `is-active` drives the active card
+		// treatment (blue working comet, active border); `multi-session` scopes the
+		// idle active-border cue + the keyboard shortcut pills to the side-by-side
+		// layout so a lone session card is never accented. Set here (alongside
+		// `is-active`) so both apply reliably on every reconcile.
 		const activeId = active?.sessionId;
-		let activeElement: HTMLElement | undefined;
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
 			const isActive = (slot.boundSessionId !== undefined && slot.boundSessionId === activeId) || this._slots.length === 1;
 			slot.view.element.classList.toggle('is-active', isActive);
-			slot.view.element.classList.toggle('shared-input-mode', sharedMode);
+			slot.view.element.classList.toggle('multi-session', multiSession);
 			slot.view.setActive(isActive);
-			if (isActive) {
-				activeElement = slot.view.element;
-			}
 			// Surface the keyboard shortcut that focuses this column so switching
 			// between side-by-side sessions is discoverable. Only shown in the
-			// shared-input layout and only for bound sessions.
-			this._updateSlotShortcutHint(slot, sharedMode && slot.boundSessionId !== undefined ? i : -1);
+			// multi-session layout and only for bound sessions.
+			this._updateSlotShortcutHint(slot, multiSession && slot.boundSessionId !== undefined ? i : -1);
 		}
-		this._activeSlotElement = activeElement;
-		this._observeActiveColumn(activeElement);
 
 		this._activeSession = active;
 		this._updateSharedInput();
@@ -383,7 +358,7 @@ export class SessionsPart extends Part {
 		const active = this._activeSession;
 		// Note: `_sharedInput` is created lazily by `_showSharedInput`, so it must
 		// NOT be part of this guard (otherwise it could never be created).
-		if (!this._sharedMode || !active || !this._sharedInputDock) {
+		if (!active || !this._sharedInputDock) {
 			this._hideSharedInput();
 			return;
 		}
@@ -432,8 +407,8 @@ export class SessionsPart extends Part {
 	/**
 	 * Updates the region's accessible name to name the session the input is bound
 	 * to, and announces the change to screen readers when the bound session
-	 * actually changes. The visible cue is the accent strip (see
-	 * {@link _alignSharedInputAccent}), so no text is rendered here.
+	 * actually changes. The visible cue is which session card is active, so no
+	 * text is rendered here.
 	 */
 	private _updateSharedInputLabel(title: string): void {
 		const name = title.trim() || localize('sharedInput.untitled', "Untitled");
@@ -486,36 +461,6 @@ export class SessionsPart extends Part {
 		}
 
 		this._gridWidget.layout(contentWidth, Math.max(0, contentHeight - reserved), top, left);
-
-		// Re-align the accent on the next animation frame so it reads the active
-		// column's settled on-screen bounds rather than mid-reflow values during
-		// this synchronous layout pass.
-		this._scheduleAccentAlign();
-	}
-
-	private _scheduleAccentAlign(): void {
-		if (!this._sharedInputDock) {
-			return;
-		}
-		const targetWindow = getWindow(this._sharedInputDock);
-		this._accentAlign.value = scheduleAtNextAnimationFrame(targetWindow, () => this._alignSharedInputAccent());
-	}
-
-	/**
-	 * (Re)installs a {@link ResizeObserver} on the active column so the accent
-	 * re-aligns whenever that column changes size or position — for example when
-	 * the Changes/Files panel opens and the grid columns reflow without a
-	 * sessions-part relayout. Cleared when there is no active column.
-	 */
-	private _observeActiveColumn(element: HTMLElement | undefined): void {
-		this._activeColumnResize.clear();
-		if (!element) {
-			return;
-		}
-		const targetWindow = getWindow(element);
-		const observer = new targetWindow.ResizeObserver(() => this._scheduleAccentAlign());
-		observer.observe(element);
-		this._activeColumnResize.value = toDisposable(() => observer.disconnect());
 	}
 
 	/**
@@ -530,29 +475,6 @@ export class SessionsPart extends Part {
 			? this.keybindingService.lookupKeybinding(`sessions.focusSessionInGrid${index + 1}`)?.getLabel() ?? undefined
 			: undefined;
 		slot.view.setShortcutHint(label);
-	}
-
-	/**
-	 * Positions the dock's accent strip to span the active column's horizontal
-	 * extent, turning the dock's top edge into a quiet connector from the input
-	 * up to the session it targets.
-	 */
-	private _alignSharedInputAccent(): void {
-		const accent = this._sharedInputAccent;
-		if (!accent || !this._sharedInputDock || !this._sharedInputVisible) {
-			return;
-		}
-		if (!this._activeSlotElement) {
-			accent.style.display = 'none';
-			return;
-		}
-		const dockRect = this._sharedInputDock.getBoundingClientRect();
-		const activeRect = this._activeSlotElement.getBoundingClientRect();
-		const left = Math.max(0, activeRect.left - dockRect.left);
-		const width = Math.max(0, Math.min(activeRect.width, dockRect.width - left));
-		accent.style.display = '';
-		accent.style.left = `${Math.round(left)}px`;
-		accent.style.width = `${Math.round(width)}px`;
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
@@ -703,7 +625,11 @@ export class SessionsPart extends Part {
 	}
 
 	private get _gridSeparatorBorder(): Color {
-		return this.theme.getColor(agentsPanelBorder) || this.theme.getColor(contrastBorder) || Color.transparent;
+		// The session cards are visually separated by the gap between them (each
+		// card insets within its grid leaf), so the grid's own separator line
+		// would just draw a stray divider in that gap. Keep it transparent, but
+		// preserve a visible separator in high-contrast themes for orientation.
+		return this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
 	override updateStyles(): void {
@@ -715,7 +641,9 @@ export class SessionsPart extends Part {
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
 		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
 		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
-		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
+		// The part itself is transparent (the session cards + docked input card
+		// paint their own backgrounds); the gaps between them reveal the shell.
+		container.style.backgroundColor = 'transparent';
 
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
 	}

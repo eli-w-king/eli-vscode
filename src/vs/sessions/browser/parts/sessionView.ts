@@ -50,6 +50,13 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
+
+	/**
+	 * Inset applied to each session card inside its grid leaf so adjacent
+	 * sessions read as separate panels with a gap between them (and a gap to the
+	 * part edges). The gap between two neighbouring cards is twice this value.
+	 */
+	private static readonly CARD_GAP = 5;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
@@ -217,10 +224,11 @@ export class SessionView extends Disposable implements ISerializableView {
 				view.setChat(activeChat, session.sessionId);
 			}
 
-			// Drive the inactive in-progress "comet" around the header (the active
-			// session shows progress on the shared input instead).
+			// Drive the in-progress "comet" around the whole session card. The
+			// CSS picks the colour from `is-active` (blue when active, black when
+			// inactive); the active session no longer shows progress on the input.
 			this._currentStatus = status;
-			this._updateInactiveWorking();
+			this._updateWorking();
 
 			this._header.setSession(session);
 			this._compositeBar.setSession(session);
@@ -229,9 +237,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		}));
 	}
 
-	private _updateInactiveWorking(): void {
-		const working = !this._isActive && this._currentStatus === SessionStatus.InProgress;
-		this.element.classList.toggle('inactive-working', working);
+	private _updateWorking(): void {
+		const working = this._currentStatus === SessionStatus.InProgress;
+		this.element.classList.toggle('working', working);
 	}
 
 	/** Whether this view currently renders a created chat transcript-only (shared-input layout). */
@@ -290,8 +298,16 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
-		size(this.element, width, height);
-		this._lastLayout = { width, height, top, left };
+		// Inset the card within its grid leaf so neighbouring session views read
+		// as separate panels with a gap between them. `size()` sets explicit
+		// pixel dimensions, so the gap has to be subtracted here (CSS margin
+		// alone would overflow the leaf).
+		const gap = SessionView.CARD_GAP;
+		const cardWidth = Math.max(0, width - gap * 2);
+		const cardHeight = Math.max(0, height - gap * 2);
+		this.element.style.margin = `${gap}px`;
+		size(this.element, cardWidth, cardHeight);
+		this._lastLayout = { width: cardWidth, height: cardHeight, top, left };
 		this._layoutChildren();
 	}
 
@@ -371,7 +387,6 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		this._isActive = active;
 		this._applyActiveSessionStyles();
-		this._updateInactiveWorking();
 		this._currentView.value?.setActive(active);
 	}
 
