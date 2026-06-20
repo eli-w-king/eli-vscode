@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,20 +16,14 @@ import { IAgentHostTerminalService } from '../../../../workbench/contrib/termina
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
 
@@ -597,55 +589,11 @@ class RegisterAgentHostSessionTaskRunnerContribution extends Disposable implemen
 
 registerWorkbenchContribution2(RegisterAgentHostSessionTaskRunnerContribution.ID, RegisterAgentHostSessionTaskRunnerContribution, WorkbenchPhase.BlockStartup);
 
-class OpenSessionInTerminalAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.openInTerminal',
-			title: localize2('openInTerminal', "Open Terminal"),
-			icon: Codicon.terminal,
-			toggled: {
-				condition: SessionsTerminalViewVisibleContext,
-				title: localize('hideTerminal', "Hide Terminal"),
-			},
-			menu: [{
-				id: Menus.TitleBarSessionMenu,
-				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
-			}]
-		});
-	}
-
-	override async run(_accessor: ServicesAccessor): Promise<void> {
-		const telemetryService = _accessor.get(ITelemetryService);
-		logSessionsInteraction(telemetryService, 'openTerminal');
-
-		const layoutService = _accessor.get(IWorkbenchLayoutService);
-		const viewsService = _accessor.get(IViewsService);
-
-		// Toggle: if panel is visible and the terminal view is active, hide it.
-		// If the panel is visible but showing another view, open the terminal instead.
-		if (layoutService.isVisible(Parts.PANEL_PART)) {
-			if (viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
-				layoutService.setPartHidden(true, Parts.PANEL_PART);
-				return;
-			}
-		}
-
-		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
-		const sessionsService = _accessor.get(ISessionsService);
-		const pathService = _accessor.get(IPathService);
-
-		const activeSession = sessionsService.activeSession.get();
-		const info = getSessionTerminalInfo(activeSession);
-		const cwd = info?.cwd ?? await pathService.userHome();
-		await contribution.ensureTerminal(cwd, true, info?.agentHostCwd ? activeSession : undefined);
-		viewsService.openView(TERMINAL_VIEW_ID);
-	}
-}
-
-registerAction2(OpenSessionInTerminalAction);
+// NOTE: The user-facing "Open Terminal" entry point has been intentionally
+// removed from the agents window — the terminal is no longer a concept users
+// interact with. The terminal execution backend (SessionsTerminalContribution /
+// the agent-host task runner) is kept so agents can still run commands; only the
+// UI affordance to open/reveal a terminal is gone.
 
 class DumpTerminalTrackingAction extends Action2 {
 

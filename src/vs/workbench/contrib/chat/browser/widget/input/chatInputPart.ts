@@ -3423,6 +3423,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	async renderChatTodoListWidget(chatSessionResource: URI) {
 
+		// The agents window removes todos as a user-facing concept — never render
+		// the input's todo list widget there.
+		if (this.options.isSessionsWindow) {
+			return;
+		}
+
 		const isTodoWidgetEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.TodosShowWidget) !== false;
 		if (!isTodoWidgetEnabled) {
 			return;

@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalGroupService, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { resolveTaskCommand } from '../../chat/browser/taskCommand.js';
@@ -35,7 +35,6 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -72,7 +71,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		}
 
 		this._terminalService.setActiveInstance(instance);
-		await this._terminalGroupService.showPanel(true);
+		// Intentionally do NOT reveal the bottom panel here: the agents window
+		// hides the terminal as a user-facing concept. The command still runs
+		// headlessly via `sendText` below; we just never pop the panel open.
 		await instance.sendText(command, /*shouldExecute*/ true);
 	}
 

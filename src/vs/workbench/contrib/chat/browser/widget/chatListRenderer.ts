@@ -2275,6 +2275,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderNoContent(other => content.kind === other.kind);
 			}
 
+			// The agents window removes todos as a user-facing concept, so skip rendering
+			// the todo-list tool invocation (e.g. the "Created N todos" line) entirely there.
+			if (this.environmentService.isSessionsWindow
+				&& (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
+				&& content.toolSpecificData?.kind === 'todoList') {
+				return this.renderNoContent(other => content.kind === other.kind);
+			}
+
 			const isResponseElement = isResponseVM(context.element);
 			const shouldPin = this.shouldPinPart(content, isResponseElement ? context.element : undefined);
 
