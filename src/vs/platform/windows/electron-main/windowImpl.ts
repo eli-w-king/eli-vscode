@@ -712,7 +712,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
 			}
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			// The agents window opts into macOS vibrancy so its frosted sidebar
+			// can show a blurred view of what's behind the window (no-op off macOS).
+			const windowOptionsOverrides = config.isSessionsWindow ? { vibrancy: 'under-window' as const } : undefined;
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, windowOptionsOverrides, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');

@@ -12,8 +12,10 @@ import { IStateService } from '../../state/node/state.js';
 import { IPartsSplash } from '../common/themeService.js';
 import { IColorScheme } from '../../window/common/window.js';
 import { ThemeTypeSelector } from '../common/theme.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IThemeMainService } from './themeMainService.js';
@@ -78,7 +80,8 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	constructor(
 		@IStateService private stateService: IStateService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IEnvironmentMainService private environmentMainService: IEnvironmentMainService
 	) {
 		super();
 
@@ -234,7 +237,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// Update in opened windows
 		if (typeof windowId === 'number') {
-			this.updateBackgroundColor(windowId, splash);
+			// The agents window runs with a transparent background on macOS so its
+			// native vibrancy shows through; never paint an opaque splash color
+			// over it (that would hide the frosted effect).
+			const isAgentSessionsWindow = isMacintosh && isWorkspaceIdentifier(workspace) && isEqual(workspace.configPath, this.environmentMainService.agentSessionsWorkspace);
+			if (!isAgentSessionsWindow) {
+				this.updateBackgroundColor(windowId, splash);
+			}
 		}
 
 		// Update system theme

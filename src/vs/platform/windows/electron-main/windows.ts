@@ -126,6 +126,12 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	alwaysOnTop?: boolean;
 	frameless?: boolean;
 	transparent?: boolean;
+	/**
+	 * macOS only: render a native vibrancy (NSVisualEffectView) material behind
+	 * the window so a transparent renderer shows a frosted view of whatever is
+	 * behind the window. Ignored on other platforms.
+	 */
+	vibrancy?: electron.BrowserWindowConstructorOptions['vibrancy'];
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
@@ -254,6 +260,16 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	if (overrides?.transparent) {
 		options.transparent = true;
 		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	// macOS vibrancy: draw a native frosted-glass material behind the window so
+	// transparent renderer regions (e.g. the agents window sidebar) reveal a
+	// blurred view of whatever sits behind the window. macOS only — `vibrancy`
+	// is a no-op elsewhere and would just leave an opaque transparent window.
+	if (isMacintosh && overrides?.vibrancy) {
+		options.vibrancy = overrides.vibrancy;
+		options.visualEffectState = 'active'; // keep the material lively even when the window is not focused
+		options.backgroundColor = '#00000000'; // fully transparent so the vibrancy shows through where the renderer paints nothing
 	}
 
 	if (overrides?.notResizable) {
