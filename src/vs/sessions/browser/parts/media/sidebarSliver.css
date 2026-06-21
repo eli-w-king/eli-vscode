@@ -39,9 +39,8 @@
 	color: var(--vscode-foreground);
 }
 
-/* Hide the full-list chrome: title row, search row, and the session list. */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-row,
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-search-row,
+/* Hide the session list and the collapse control (the expand control replaces it). */
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-actions,
 .agent-sessions-workbench .part.sidebar.sliver .agent-sessions-control-container {
 	display: none;
 }
@@ -51,42 +50,25 @@
 	padding-top: 38px;
 }
 
-/* Compact, centered, icon-only primary action buttons. */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-actions-stack {
-	padding: 0 5px;
+/* Stack the icon-only primary actions vertically, centered in the rail. */
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-row {
+	flex-direction: column;
+	align-items: center;
 	gap: 6px;
-	align-items: center;
+	padding: 0 4px;
+	min-height: 0;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button,
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button.monaco-button {
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label {
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button,
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label .agent-sessions-customizations-button.monaco-button {
 	width: 30px;
-	min-width: 0;
 	height: 30px;
-	padding: 0;
-	justify-content: center;
-}
-
-/* New button: collapse to a single "+" glyph. */
-.agent-sessions-workbench .part.sidebar.sliver .new-session-button-label {
-	display: none;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-compact-new-button::before {
-	content: '+';
-	font-size: 17px;
-	line-height: 1;
-}
-
-/* Customizations button: icon only (the label is hidden, icon revealed). */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button-label {
-	display: none;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button .agent-sessions-customizations-button-icon {
-	display: inline-flex;
-	align-items: center;
-	font-size: 15px;
 }
 
 /* Footer account widget → avatar only, centered. */

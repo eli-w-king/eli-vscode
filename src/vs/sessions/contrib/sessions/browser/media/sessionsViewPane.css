@@ -73,174 +73,71 @@
 		display: none;
 	}
 
-	/* Title row: "Sessions" label + collapse control */
+	/* Compact toolbar row: icon-only New + Customizations (left), collapse (right) */
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
-		padding: 10px 10px 6px;
+		padding: 8px 8px 6px;
 		min-height: 32px;
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
 	}
 
+	/* Left group: icon buttons */
 	.agent-sessions-header-label {
-		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 2px;
 		min-width: 0;
-		font-size: var(--vscode-agents-fontSize-label1, 12px);
-		font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.agent-sessions-header-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
 		margin-left: auto;
 		flex-shrink: 0;
 	}
 
-	/* Stacked, full-width primary actions (New + Customizations) */
-	.agent-sessions-actions-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding: 0 10px 8px;
-		box-sizing: border-box;
-	}
-
-	/* Full-width search row: clean, minimal find input */
-	.agent-sessions-search-row {
-		display: flex;
-		align-items: center;
-		padding: 0 10px 8px;
-		box-sizing: border-box;
-	}
-
-	/* Inline search input — fills the search row, styled as a clean search box */
-	.agent-sessions-find-widget-container {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
-		position: static;
-		display: flex;
-		width: 100%;
-		max-width: none;
-		margin: 0;
-		padding: 0;
-		border: none;
-		border-radius: 0;
-		box-shadow: none !important;
-		background: transparent;
-		background-color: transparent !important;
-	}
-
-	.agent-sessions-find-widget-container .monaco-tree-type-filter .monaco-tree-type-filter-input {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
-		display: flex;
-		align-items: center;
-		min-height: 28px;
-		box-sizing: border-box;
-		border-radius: var(--vscode-cornerRadius-medium, 6px);
-		background-color: var(--vscode-input-background);
-	}
-
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox > .ibwrapper > .input {
-		padding: 0 8px;
-		font-size: var(--vscode-agents-fontSize-label1, 12px);
-	}
-
-	/* Borderless until focus — match the model picker search field */
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput .monaco-inputbox.idle {
-		border: 1px solid transparent;
-	}
-
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
-		display: none;
-	}
-
-	/* Search is always visible — drop the find widget's close button. */
-	.agent-sessions-search-row .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar {
-		display: none;
-	}
-
-	/* Full-width primary buttons (New + Customizations) — clean, flat, borderless */
-	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button,
-	.agent-sessions-customizations-button.monaco-button {
+	/* Icon-only primary action buttons (New + Customizations) — flat, ghost */
+	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button,
+	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 6px;
-		width: 100%;
+		width: 28px;
 		min-width: 0;
 		height: 28px;
-		padding: 0 10px;
-		font-size: var(--vscode-agents-fontSize-label1, 12px);
-		font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-		line-height: 18px;
+		padding: 0;
 		border: none;
 		border-radius: var(--vscode-cornerRadius-medium, 6px);
-		white-space: nowrap;
-	}
-
-	/* "New" — subtle filled primary */
-	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button {
-		background-color: var(--vscode-input-background);
-		color: var(--vscode-foreground);
-	}
-
-	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
-	}
-
-	/* "Customizations" — ghost button */
-	.agent-sessions-customizations-button.monaco-button {
 		background-color: transparent;
-		color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+		color: var(--vscode-icon-foreground, var(--vscode-foreground));
 	}
 
-	.agent-sessions-customizations-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
-		color: var(--vscode-foreground);
-	}
-
-	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button:not(.disabled),
-	.agent-sessions-customizations-button.monaco-button:not(.disabled) {
+	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button:not(.disabled),
+	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button:not(.disabled) {
 		cursor: pointer;
 	}
 
-	.agent-sessions-compact-new-button.monaco-button:focus,
-	.agent-sessions-customizations-button.monaco-button:focus {
+	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button.default-colors:hover,
+	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button.default-colors:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+
+	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button:focus,
+	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button:focus {
 		outline-offset: -1px !important;
 	}
 
-	.agent-sessions-customizations-button .agent-sessions-customizations-button-label {
-		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	/* Expanded view: label only — the icon is shown only in the collapsed rail. */
-	.agent-sessions-customizations-button .agent-sessions-customizations-button-icon {
-		display: none;
-	}
-
-	.agent-sessions-compact-new-button .new-session-button-label {
+	.agent-sessions-compact-new-button-icon,
+	.agent-sessions-customizations-button-icon {
 		display: inline-flex;
 		align-items: center;
-		gap: 2px;
-		min-width: 0;
-		white-space: nowrap;
+		justify-content: center;
+		font-size: 16px;
 	}
 
 	.agent-sessions-control-container {

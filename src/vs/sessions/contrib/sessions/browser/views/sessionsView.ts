@@ -27,12 +27,13 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { aiCustomizationViewIcon } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
-import { agentsBackground, agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
+import { agentsBackground, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -168,36 +169,35 @@ export class SessionsView extends ViewPane {
 
 		const phoneLayout = isPhoneLayout(this.layoutService);
 
-		// Title row: "Sessions" label (left) + collapse-to-rail control (right).
+		// Compact toolbar row: icon-only New + Customizations (left) and the
+		// collapse-to-rail control (right). No title or search on desktop.
 		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
-		// The find widget mounts into this container. On desktop it lives in the
-		// always-visible search row below; on phone it stays in the title row and
-		// is toggled by the mobile filter chips.
+		// The find widget mounts into this container. On phone it stays in the
+		// title row and is toggled by the mobile filter chips. On desktop it is
+		// not shown (search removed) but must exist for the list control.
 		const findWidgetContainer = this.findWidgetContainer = $('.agent-sessions-find-widget-container');
 
 		if (!phoneLayout) {
-			headerLabel.textContent = localize('sessionsHeader', "Sessions");
+			headerRow.classList.add('agent-sessions-header-row--desktop');
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
-			// Title-row actions: collapse to rail.
+			// Left: icon-only primary actions (New session + Customizations).
+			this.createNewSessionButton(headerLabel);
+			this.createCustomizationsButton(headerLabel);
+
+			// Right: collapse to rail.
 			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsTitleActions, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				telemetrySource: 'sessionsView.title',
 				toolbarOptions: { primaryGroup: () => true },
 			}));
 
-			// Stacked, full-width primary actions: New session + Customizations.
-			const actionsStack = DOM.append(sessionsContent, $('.agent-sessions-actions-stack'));
-			this.createNewSessionButton(actionsStack);
-			this.createCustomizationsButton(actionsStack);
-
-			// Full-width search row: always-visible find input.
-			const searchRow = DOM.append(sessionsContent, $('.agent-sessions-search-row'));
-			DOM.append(searchRow, findWidgetContainer);
+			findWidgetContainer.style.display = 'none';
+			DOM.append(headerRow, findWidgetContainer);
 		} else {
 			headerRow.classList.add('phone-layout-empty');
 			DOM.append(headerRow, findWidgetContainer);
@@ -252,12 +252,10 @@ export class SessionsView extends ViewPane {
 				}
 			}));
 		} else {
-			// On desktop the search bar is always present. Open the find widget
-			// without stealing focus so it renders into the search row.
+			// On desktop there is no search bar; nothing to mount.
 			this._register(sessionsControl.onDidChangeFindOpenState(open => {
 				this.isFindWidgetOpen = open;
 			}));
-			sessionsControl.openFind(false);
 		}
 
 		// Sync workspace group capped context key with persisted state
@@ -339,10 +337,10 @@ export class SessionsView extends ViewPane {
 	private createNewSessionButton(container: HTMLElement): void {
 		const newSessionButton = this._register(new Button(container, {
 			...defaultButtonStyles,
-			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			buttonSecondaryBackground: 'transparent',
 			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
 			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
-			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
+			buttonSecondaryBorder: undefined,
 			secondary: true,
 			supportIcons: true,
 		}));
@@ -352,9 +350,9 @@ export class SessionsView extends ViewPane {
 			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);
 		}));
 
-		const newSessionLabel = localize('newCompact', "New");
-		const buttonLabel = $('span.new-session-button-label', undefined, newSessionLabel);
-		DOM.reset(newSessionButton.element, buttonLabel);
+		const buttonIcon = $('span.agent-sessions-compact-new-button-icon');
+		buttonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.add));
+		DOM.reset(newSessionButton.element, buttonIcon);
 
 		const getNewSessionKeybinding = () => {
 			const primaryKeybinding = this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.scopedContextKeyService, true);
@@ -393,10 +391,10 @@ export class SessionsView extends ViewPane {
 	private createCustomizationsButton(container: HTMLElement): void {
 		const button = this._register(new Button(container, {
 			...defaultButtonStyles,
-			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			buttonSecondaryBackground: 'transparent',
 			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
 			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
-			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
+			buttonSecondaryBorder: undefined,
 			secondary: true,
 			supportIcons: true,
 		}));
@@ -404,8 +402,7 @@ export class SessionsView extends ViewPane {
 
 		const icon = $('span.agent-sessions-customizations-button-icon');
 		icon.classList.add(...ThemeIcon.asClassNameArray(aiCustomizationViewIcon));
-		const label = $('span.agent-sessions-customizations-button-label', undefined, localize('customizationsButton', "Customizations"));
-		DOM.reset(button.element, icon, label);
+		DOM.reset(button.element, icon);
 
 		this._register(button.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agentOpenCustomizations');
