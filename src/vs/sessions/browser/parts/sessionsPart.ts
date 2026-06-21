@@ -356,6 +356,11 @@ export class SessionsPart extends Part {
 			const title = chat.title.read(reader);
 			if (created && !isUntitled) {
 				this._showSharedInput(active, chat, title);
+				// Disable the input while the active card shows its Files/Changes
+				// panel instead of the transcript; re-enable on the transcript.
+				const activeView = this.getSessionView(active.sessionId);
+				const mode = activeView?.lowerRegionMode.read(reader) ?? 'transcript';
+				this._sharedInput?.setEnabled(mode === 'transcript');
 			} else {
 				// New-session / new-chat slots keep their own inline input.
 				this._hideSharedInput();

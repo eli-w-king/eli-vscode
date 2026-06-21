@@ -11,7 +11,15 @@
 .shared-chat-input-view {
 	width: 100%;
 	box-sizing: border-box;
-	--vscode-agentsChatInput-background: var(--vscode-agentsPanel-background);
+	--vscode-agentsChatInput-background: var(--vscode-activeSessionView-background);
+}
+
+/* Disabled while the active card shows its Files/Changes panel instead of the
+ * transcript: the input stays visible (so the composer height doesn't jump) but
+ * is dimmed and non-interactive until the card returns to its transcript. */
+.shared-chat-input-view.disabled {
+	opacity: 0.5;
+	pointer-events: none;
 }
 
 /* The hosted chat widget is input-only (no transcript), so let it size to its
@@ -33,15 +41,14 @@
 	margin: 0 !important;
 }
 
-/* The docked input is its own white card below the session cards: it uses the
- * pure-white panel background and rounded corners so it stays legible over the
- * (possibly frosted/translucent) shell behind the dock. It is borderless and
- * flat at rest; only when focused (clicked into) does it lift with a soft,
- * high-spread drop shadow — never a border. This holds whether one or several
- * sessions are visible. Forced because shared chat styles set a gray
- * background/border at higher specificity. */
+/* The docked input represents the active session's composer, so it paints the
+ * same background as the active session card (darker than the inactive cards in
+ * dark mode). It stays legible over the (possibly frosted) shell, is borderless
+ * and flat at rest, and only lifts with a soft drop shadow when focused — never
+ * a border. Forced because shared chat styles set a gray background at higher
+ * specificity. */
 .monaco-workbench .shared-chat-input-view .interactive-session .chat-input-container {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-activeSessionView-background) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	border-color: transparent !important;
 }
@@ -71,13 +78,13 @@
 	border-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
-/* Make the inner editor match the white card background (no gray inset box).
+/* Make the inner editor match the input card background (no gray inset box).
  * Target the monaco background element directly — it is not always nested under
  * `.monaco-editor` in this widget. */
 .monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor,
 .monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor-background,
 .monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor .margin {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-activeSessionView-background) !important;
 }
 
 /* Progress is shown on the session card border (blue active / black inactive),

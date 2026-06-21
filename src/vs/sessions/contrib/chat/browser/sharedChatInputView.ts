@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sharedChatInput.css';
-import { $ } from '../../../../base/browser/dom.js';
+import { $, isHTMLElement } from '../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -41,6 +41,8 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 export class SharedChatInputView extends Disposable implements ISharedChatInput {
 
 	readonly element: HTMLElement = $('.shared-chat-input-view');
+
+	private _enabled = true;
 
 	private readonly _widget: ChatWidget;
 
@@ -199,7 +201,24 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 	}
 
 	focus(): void {
+		if (!this._enabled) {
+			return;
+		}
 		this._widget.focusInput();
+	}
+
+	setEnabled(enabled: boolean): void {
+		if (this._enabled === enabled) {
+			return;
+		}
+		this._enabled = enabled;
+		this.element.classList.toggle('disabled', !enabled);
+		if (!enabled && this._widget.hasInputFocus()) {
+			const activeEl = this.element.ownerDocument.activeElement;
+			if (isHTMLElement(activeEl)) {
+				activeEl.blur();
+			}
+		}
 	}
 
 	hasFocus(): boolean {

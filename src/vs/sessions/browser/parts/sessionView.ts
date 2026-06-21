@@ -14,12 +14,12 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory, ISessionLowerRegionView } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
-import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
+import { SessionHeader, SessionViewFloatingToolbar, SessionLowerRegionMode } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
@@ -80,6 +80,16 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+
+	/**
+	 * Per-card lower-region mode. The area under the title separator shows the
+	 * chat transcript by default, or a simplified Files tree / Changes list when
+	 * toggled from the header. Independent per card and exposed so the active
+	 * card's mode can gate the shared input.
+	 */
+	private readonly _lowerRegionMode = observableValue<SessionLowerRegionMode>(this, 'transcript');
+	private readonly _lowerRegionView = this._register(new MutableDisposable<ISessionLowerRegionView>());
+	private _lowerRegionViewKind: 'files' | 'changes' | undefined;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
@@ -157,6 +167,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this.element.appendChild(this._centeredContentContainer);
 
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
+		this._header.setLowerRegionDelegate(this);
 		this._centeredContentContainer.appendChild(this._header.element);
 
 		this._compositeBar = this._register(scopedInstantiationService.createInstance(ChatCompositeBar));
@@ -188,6 +199,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionObs.set(session, undefined);
 		this._openSessionDisposables.clear();
 
+		// A different session starts on its transcript; drop any lower-region
+		// panel held for the previous session.
+		this._lowerRegionMode.set('transcript', undefined);
+		this._lowerRegionView.clear();
+		this._lowerRegionViewKind = undefined;
+
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._openSessionDisposables.add(autorun(reader => {
@@ -215,9 +232,12 @@ export class SessionView extends Disposable implements ISerializableView {
 					? this.chatViewFactory.createChatView(wantTranscriptOnly)
 					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
 				this._currentChatTranscriptOnly = desiredKind === 'chat' ? wantTranscriptOnly : undefined;
-				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);
+				// A freshly created/changed chat view starts on the transcript; its
+				// element (or the lower-region panel) is attached by _updateContent.
+				this._lowerRegionMode.set('transcript', undefined);
+				this._updateContent();
 			}
 
 			if (session && activeChat) {
@@ -235,6 +255,64 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._floatingToolbar.setSession(session);
 			this._layoutChildren();
 		}));
+	}
+
+	/** The card's current lower-region mode (transcript / files / changes). */
+	get lowerRegionMode(): IObservable<SessionLowerRegionMode> {
+		return this._lowerRegionMode;
+	}
+
+	toggleFiles(): void {
+		this._setLowerRegionMode(this._lowerRegionMode.get() === 'files' ? 'transcript' : 'files');
+	}
+
+	toggleChanges(): void {
+		this._setLowerRegionMode(this._lowerRegionMode.get() === 'changes' ? 'transcript' : 'changes');
+	}
+
+	private _setLowerRegionMode(mode: SessionLowerRegionMode): void {
+		if (this._lowerRegionMode.get() === mode) {
+			return;
+		}
+		this._lowerRegionMode.set(mode, undefined);
+		this._updateContent();
+	}
+
+	/**
+	 * Syncs the content container with the current lower-region mode: shows the
+	 * chat view on `transcript`, or a lazily-created Files/Changes panel bound to
+	 * this card's session otherwise. The lower region only applies to created
+	 * chat columns; other kinds always show their own view.
+	 */
+	private _updateContent(): void {
+		const chatView = this._currentView.value;
+		const session = this._currentSession;
+		const canLowerRegion = !!session && chatView?.kind === 'chat';
+		const mode = canLowerRegion ? this._lowerRegionMode.get() : 'transcript';
+
+		if (mode === 'transcript') {
+			if (this._lowerRegionView.value) {
+				this._lowerRegionView.clear();
+				this._lowerRegionViewKind = undefined;
+			}
+			if (chatView) {
+				this._setContentChild(chatView.element);
+			}
+		} else if (this._lowerRegionViewKind !== mode) {
+			const view = mode === 'changes'
+				? this.chatViewFactory.createChangesView(session!)
+				: this.chatViewFactory.createFilesView(session!);
+			this._lowerRegionView.value = view;
+			this._lowerRegionViewKind = mode;
+			this._setContentChild(view.element);
+		}
+		this._layoutChildren();
+	}
+
+	private _setContentChild(el: HTMLElement): void {
+		if (this._contentContainer.firstChild !== el) {
+			this._contentContainer.replaceChildren(el);
+		}
 	}
 
 	private _updateWorking(): void {
@@ -332,9 +410,15 @@ export class SessionView extends Disposable implements ISerializableView {
 		// via CSS `margin: 0 auto`) so the full-width chat content sits below it.
 		size(this._centeredContentContainer, centeredWidth, barHeight);
 
-		// Lay out the chat content at full width so its scrollbar reaches the
-		// right edge; the chat rows and input center themselves via CSS.
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
+		// Lay out the active lower-region content at full width so its scrollbar
+		// reaches the right edge; the chat rows and input center themselves via CSS.
+		const contentWidth = width;
+		const contentHeight = height - barHeight;
+		if (this._lowerRegionView.value) {
+			this._lowerRegionView.value.layout(contentWidth, contentHeight);
+		} else {
+			this._currentView.value?.layout(contentWidth, contentHeight, top + barHeight, left);
+		}
 	}
 
 	toJSON(): object {
@@ -342,6 +426,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	focus(): void {
+		if (this._lowerRegionView.value) {
+			this._lowerRegionView.value.focus();
+			return;
+		}
 		this._currentView.value?.focus();
 	}
 

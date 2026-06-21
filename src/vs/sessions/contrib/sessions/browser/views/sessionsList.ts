@@ -133,12 +133,12 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 */
 	private static readonly ITEM_HEIGHT_PHONE = 76;
 	/**
-	 * Workspace/folder section headers get a taller row than a list item so the
-	 * muted label has ~50% more vertical breathing room and reads as a clear group
-	 * divider instead of getting lost between sessions. The label is centered, so
-	 * the extra height becomes padding above and below the text.
+	 * Workspace/folder section headers get a much taller row than a list item so
+	 * the muted label has generous vertical breathing room and reads as a clear
+	 * group divider instead of getting lost between sessions. The label is
+	 * centered, so the extra height becomes padding above and below the text.
 	 */
-	private static readonly SECTION_HEIGHT = 39;
+	private static readonly SECTION_HEIGHT = 58;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 
 	constructor(

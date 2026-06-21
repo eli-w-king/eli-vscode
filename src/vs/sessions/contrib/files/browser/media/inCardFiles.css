@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Per-card simplified Files tree shown in a session card's lower region (see
+ * sessions/contrib/files/browser/inCardFilesView.ts). The shared
+ * `.in-card-lower-region` container base lives in sessionView.css (core owns the
+ * `.session-view-content` slot it mounts into). */
+
+.in-card-files-tree {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.in-card-files-tree .monaco-list-row {
+	padding-left: 4px;
+}

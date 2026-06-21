@@ -63,7 +63,20 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly SLIVER_FOOTER_ITEM_HEIGHT = 30;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
-	private static readonly FOOTER_BOTTOM_MARGIN = 2;
+	/**
+	 * Bottom margin under the expanded footer row. Sized so the account row +
+	 * action icons line up vertically with the shared input's bottom toolbar row
+	 * (model / mode / approvals) rather than sitting slightly lower than it.
+	 * Keep in sync with the `.sidebar-footer` margin-bottom in sidebarPart.css.
+	 */
+	private static readonly FOOTER_BOTTOM_MARGIN = 13;
+	/**
+	 * Bottom margin under the collapsed-rail footer. Smaller than the expanded
+	 * margin (the rail has no input to align with); keep in sync with the sliver
+	 * `.sidebar-footer` margin-bottom in sidebarSliver.css. The rail's extra
+	 * lift off the bottom edge comes from {@link SLIVER_FOOTER_BOTTOM_GAP}.
+	 */
+	private static readonly SLIVER_FOOTER_BOTTOM_MARGIN = 2;
 	private static readonly FOOTER_BORDER_TOP = 1;
 	/**
 	 * Extra space reserved below the footer in the collapsed rail. The footer is
@@ -296,11 +309,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		// Sliver: they stack vertically (avatar at the bottom, icons above).
 		const rows = this._slivered ? (accountCount + actionCount) : Math.max(accountCount, 1);
 		const itemHeight = this._slivered ? SidebarPart.SLIVER_FOOTER_ITEM_HEIGHT : SidebarPart.FOOTER_ITEM_HEIGHT;
+		const bottomMargin = this._slivered ? SidebarPart.SLIVER_FOOTER_BOTTOM_MARGIN : SidebarPart.FOOTER_BOTTOM_MARGIN;
 
 		return SidebarPart.FOOTER_VERTICAL_PADDING * 2
 			+ (rows * itemHeight)
 			+ ((rows - 1) * SidebarPart.FOOTER_ITEM_GAP)
-			+ SidebarPart.FOOTER_BOTTOM_MARGIN
+			+ bottomMargin
 			+ SidebarPart.FOOTER_BORDER_TOP
 			+ (this._slivered ? SidebarPart.SLIVER_FOOTER_BOTTOM_GAP : 0);
 	}

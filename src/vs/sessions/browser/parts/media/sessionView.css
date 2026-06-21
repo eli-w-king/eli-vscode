@@ -38,6 +38,42 @@
 	box-sizing: border-box;
 }
 
+/* Per-card "lower region": the area under the title separator hosts the chat
+ * transcript by default, or a simplified Files tree / Changes list when toggled
+ * from the header. The concrete panels live in contrib (inCardFilesView /
+ * inCardChangesView); core owns this container base since it mounts into the
+ * core-owned `.session-view-content` slot. It paints the card's own background
+ * (`--session-view-background`) so an open panel matches its card's active /
+ * inactive shade rather than a fixed panel colour. */
+.session-view .in-card-lower-region {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background-color: var(--session-view-background);
+}
+
+/* Let the card background show through the list/tree so the panel reads as one
+ * surface with its card; rows still get their own hover/focus treatment. */
+.session-view .in-card-lower-region .monaco-list,
+.session-view .in-card-lower-region .monaco-list-rows {
+	background: transparent;
+}
+
+/* Empty-state placeholder shown when a Files/Changes panel has nothing to list,
+ * so the lower region doesn't read as a blank void. */
+.session-view .in-card-lower-region .in-card-empty {
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px 16px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	text-align: center;
+}
+
 /* Smoothly cross-fade between active and inactive states. */
 @media (prefers-reduced-motion: no-preference) {
 	.session-view .session-view-centered-content,

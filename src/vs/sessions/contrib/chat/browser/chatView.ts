@@ -19,7 +19,10 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
-import { IChatViewFactory, ISharedChatInput } from '../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory, ISharedChatInput, ISessionLowerRegionView } from '../../../services/chatView/browser/chatViewFactory.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { InCardChangesView } from '../../changes/browser/inCardChangesView.js';
+import { InCardFilesView } from '../../files/browser/inCardFilesView.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SharedChatInputView } from './sharedChatInputView.js';
@@ -319,5 +322,13 @@ export class ChatViewFactory implements IChatViewFactory {
 
 	createSharedInput(): ISharedChatInput {
 		return this.instantiationService.createInstance(SharedChatInputView);
+	}
+
+	createChangesView(session: IActiveSession): ISessionLowerRegionView {
+		return this.instantiationService.createInstance(InCardChangesView, session);
+	}
+
+	createFilesView(session: IActiveSession): ISessionLowerRegionView {
+		return this.instantiationService.createInstance(InCardFilesView, session);
 	}
 }

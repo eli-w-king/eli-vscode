@@ -189,41 +189,32 @@
 	opacity: 0.8;
 }
 
-/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
-.chat-composite-bar-meta-toolbar,
-.chat-composite-bar-meta-toolbar .monaco-action-bar,
-.chat-composite-bar-meta-toolbar .actions-container {
-	display: inline-flex;
-	align-items: center;
-	height: 100%;
+/* Lower-region triggers: the folder label toggles the Files tree and the diff
+ * stats toggle the Changes list. Both are inline, clickable, and show a toggled
+ * background while their panel is open (see ISessionHeaderLowerRegionDelegate). */
+.chat-composite-bar-meta-workspace.clickable,
+.chat-composite-bar-meta-diff.clickable {
+	cursor: pointer;
+	padding: 0 4px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-composite-bar-meta-workspace.clickable:hover,
+.chat-composite-bar-meta-diff.clickable:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-composite-bar-meta-workspace.active,
+.chat-composite-bar-meta-diff.active {
+	background: var(--vscode-toolbar-activeBackground);
 }
 
 .chat-composite-bar-meta-diff {
 	display: inline-flex;
 	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-diff .action-label {
-	display: inline-flex;
-	align-items: center;
 	gap: 6px;
-	color: inherit;
-	font: inherit;
+	flex-shrink: 0;
 	font-variant-numeric: tabular-nums;
-	cursor: pointer;
-	padding: 0 2px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.chat-composite-bar-meta-diff .action-label:hover {
-	color: inherit;
-	text-decoration: none;
-}
-
-.chat-composite-bar-meta-diff .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
 }
 
 .chat-composite-bar-meta-added {

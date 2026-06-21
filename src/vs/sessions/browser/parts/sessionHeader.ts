@@ -18,7 +18,6 @@ import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -36,27 +35,21 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
 /**
- * An action runner for the session header toolbars that promotes the header's
- * session to be the active session before running any contributed command. This
- * ensures commands (e.g. View Changes) operate on the clicked session even when
- * a different session is currently active.
+ * The lower-region mode of a session card: the area under the title separator
+ * shows the chat transcript by default, or a simplified Files tree / Changes
+ * list when toggled from the header.
  */
-class SessionActivatingActionRunner extends ActionRunner {
+export type SessionLowerRegionMode = 'transcript' | 'files' | 'changes';
 
-	constructor(
-		private readonly _getSession: () => IActiveSession | undefined,
-		private readonly _sessionsService: ISessionsService,
-	) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const session = this._getSession();
-		if (session) {
-			this._sessionsService.setActive(session);
-		}
-		await super.runAction(action, context);
-	}
+/**
+ * Lets the {@link SessionHeader} drive its owning card's lower region. The folder
+ * label toggles the Files tree and the diff stats toggle the Changes list; the
+ * header reflects which one is open by reading {@link lowerRegionMode}.
+ */
+export interface ISessionHeaderLowerRegionDelegate {
+	toggleFiles(): void;
+	toggleChanges(): void;
+	readonly lowerRegionMode: IObservable<SessionLowerRegionMode>;
 }
 
 /**
@@ -77,9 +70,13 @@ export class SessionHeader extends Disposable {
 	private readonly _metaRow: HTMLElement;
 	private readonly _metaWorkspaceEl: HTMLElement;
 	private readonly _metaSeparatorEl: HTMLElement;
+	private readonly _metaChangesEl: HTMLElement;
+	private readonly _metaChangesAddedEl: HTMLElement;
+	private readonly _metaChangesRemovedEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
-	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
+
+	private _lowerRegionDelegate: ISessionHeaderLowerRegionDelegate | undefined;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -97,7 +94,6 @@ export class SessionHeader extends Disposable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _readStateSignal: IObservable<void>;
-	private readonly _metaActionsSignal: IObservable<void>;
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -179,12 +175,11 @@ export class SessionHeader extends Disposable {
 		this._metaRow = $('.chat-composite-bar-meta-row');
 		main.appendChild(this._metaRow);
 
-		// Workspace label (rebuilt per session) followed by a separator and the
-		// session header meta toolbar. Actions are contributed into the generic
-		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
-		// action, rendered as a clickable menu item that opens the multi-file diff
-		// editor.
-		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
+		// Meta row triggers for the card's lower region: the workspace label
+		// toggles the Files tree and the diff stats toggle the Changes list (see
+		// ISessionHeaderLowerRegionDelegate, wired by SessionView). Both replace
+		// the card's transcript in place rather than opening a separate panel.
+		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace.clickable');
 		this._metaRow.appendChild(this._metaWorkspaceEl);
 
 		// Hovering the workspace label reveals the complete absolute folder path
@@ -195,24 +190,31 @@ export class SessionHeader extends Disposable {
 			() => this._buildWorkspaceHover(),
 		));
 
+		this._register(addDisposableListener(this._metaWorkspaceEl, EventType.CLICK, () => {
+			this._activateSession();
+			this._lowerRegionDelegate?.toggleFiles();
+		}));
+
 		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
 		this._metaRow.appendChild(this._metaSeparatorEl);
 
-		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
-		this._metaRow.appendChild(metaToolbarContainer);
-		// Commands contributed into the header meta toolbar (e.g. View Changes)
-		// operate on this view's session. Promote it to the active session before
-		// running any of them via a custom action runner, so the command always
-		// targets the clicked session even when another session is active.
-		const metaActionRunner = this._register(new SessionActivatingActionRunner(() => this._session, this._sessionsService));
-		this._metaToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, metaToolbarContainer, Menus.SessionHeaderMeta, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			actionRunner: metaActionRunner,
+		this._metaChangesEl = $('span.chat-composite-bar-meta-diff.clickable');
+		this._metaChangesAddedEl = $('span.chat-composite-bar-meta-added');
+		this._metaChangesRemovedEl = $('span.chat-composite-bar-meta-removed');
+		this._metaChangesEl.appendChild(this._metaChangesAddedEl);
+		this._metaChangesEl.appendChild(this._metaChangesRemovedEl);
+		this._metaRow.appendChild(this._metaChangesEl);
+
+		this._register(this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			this._metaChangesEl,
+			() => localize('agentSessions.viewChanges.tooltip', "View Changes"),
+		));
+
+		this._register(addDisposableListener(this._metaChangesEl, EventType.CLICK, () => {
+			this._activateSession();
+			this._lowerRegionDelegate?.toggleChanges();
 		}));
-		// The meta row separator/visibility tracks whether the meta toolbar has any
-		// contributed actions, so recompute the header whenever they change.
-		this._metaActionsSignal = observableSignalFromEvent(this, this._metaToolbar.onDidChangeMenuItems);
 
 		// Report height changes (e.g. meta row content wrapping) so the host can re-layout
 		const heightObserver = this._register(new DisposableResizeObserver('SessionHeader.height', () => {
@@ -306,7 +308,6 @@ export class SessionHeader extends Disposable {
 		this._cancelTitleEditing();
 		this._session = session;
 		this._toolbar.context = session;
-		this._metaToolbar.context = session;
 		this._statusIcon.reset();
 
 		const store = new DisposableStore();
@@ -325,6 +326,25 @@ export class SessionHeader extends Disposable {
 		store.add(autorun(reader => {
 			this._setVisible(session.isCreated.read(reader));
 		}));
+	}
+
+	/**
+	 * Connects the header's lower-region triggers (folder label / diff stats) to
+	 * the owning {@link SessionView}. Set once, right after the header is created.
+	 */
+	setLowerRegionDelegate(delegate: ISessionHeaderLowerRegionDelegate): void {
+		this._lowerRegionDelegate = delegate;
+	}
+
+	/**
+	 * Promotes the header's session to be the active one before a lower-region
+	 * toggle, so the toggle (and the shared input that follows the active card)
+	 * always targets the clicked session even when another card is active.
+	 */
+	private _activateSession(): void {
+		if (this._session) {
+			this._sessionsService.setActive(this._session);
+		}
 	}
 
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
@@ -357,14 +377,28 @@ export class SessionHeader extends Disposable {
 		}
 		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
 
-		// Show the meta row separator/row based on whether the meta toolbar has any
-		// contributed actions. Reading the signal re-runs this on menu changes.
-		this._metaActionsSignal.read(reader);
-		const hasMetaActions = !this._metaToolbar.isEmpty();
+		// Diff stats: aggregate the session's per-file line changes. Shown only
+		// when the session has produced changes; clicking toggles the in-card list.
+		const changes = session.changes.read(reader);
+		let insertions = 0;
+		let deletions = 0;
+		for (const change of changes) {
+			insertions += change.insertions;
+			deletions += change.deletions;
+		}
+		const hasChanges = insertions > 0 || deletions > 0;
+		this._metaChangesAddedEl.textContent = `+${insertions}`;
+		this._metaChangesRemovedEl.textContent = `-${deletions}`;
+		this._metaChangesEl.style.display = hasChanges ? '' : 'none';
 
-		this._metaSeparatorEl.style.display = hasWorkspace && hasMetaActions ? '' : 'none';
+		// Reflect which lower-region trigger is currently open.
+		const mode = this._lowerRegionDelegate?.lowerRegionMode.read(reader) ?? 'transcript';
+		this._metaWorkspaceEl.classList.toggle('active', mode === 'files');
+		this._metaChangesEl.classList.toggle('active', mode === 'changes');
 
-		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
+		this._metaSeparatorEl.style.display = hasWorkspace && hasChanges ? '' : 'none';
+
+		this._metaRow.style.display = hasWorkspace || hasChanges ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 

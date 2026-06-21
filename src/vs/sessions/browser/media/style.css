@@ -5,17 +5,18 @@
 
 /* ---- Corner Radius ---- */
 
-/* The agents window rounds everything ~15% more than the base design ramp for a
- * softer feel. The size tokens are emitted on `.monaco-workbench`; redefining
- * them on `.monaco-workbench.agent-sessions-workbench` wins by specificity and
- * cascades the bumped values to every cornerRadius-token consumer inside the
- * window. (The `circle` token stays fully round.) */
+/* The agents window rounds everything noticeably more than the base design ramp
+ * (~32% over base) for a softer feel. The size tokens are emitted on
+ * `.monaco-workbench`; redefining them on
+ * `.monaco-workbench.agent-sessions-workbench` wins by specificity and cascades
+ * the bumped values to every cornerRadius-token consumer inside the window.
+ * (The `circle` token stays fully round.) */
 .monaco-workbench.agent-sessions-workbench {
-	--vscode-cornerRadius-xSmall: 2.3px;
-	--vscode-cornerRadius-small: 4.6px;
-	--vscode-cornerRadius-medium: 6.9px;
-	--vscode-cornerRadius-large: 9.2px;
-	--vscode-cornerRadius-xLarge: 13.8px;
+	--vscode-cornerRadius-xSmall: 2.6px;
+	--vscode-cornerRadius-small: 5.3px;
+	--vscode-cornerRadius-medium: 7.9px;
+	--vscode-cornerRadius-large: 10.6px;
+	--vscode-cornerRadius-xLarge: 15.9px;
 }
 
 /* ---- Action Bar Items ---- */
