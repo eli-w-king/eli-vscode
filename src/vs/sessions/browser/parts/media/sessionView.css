@@ -21,6 +21,15 @@
 	overflow: hidden;
 }
 
+/* Dark themes lack the figure/ground that white-cards-on-colourful-frost gives
+ * in light mode: the cards, the shell and almost everything else are near-black,
+ * so cards merge into the shell. Give every card a hairline light border so it
+ * reads as a distinct, gently raised surface. (Light mode stays borderless and
+ * relies on the frost contrast + shadow.) */
+.agent-sessions-workbench.vs-dark .session-view {
+	border-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
 /* Session header, tabs, and chat content are all hosted in this centered
  * inner container so alignment is controlled in one place. */
 .session-view .session-view-centered-content {
@@ -52,6 +61,13 @@
 	box-shadow: 0 18px 56px 0 rgba(0, 0, 0, 0.19), 0 6px 18px 0 rgba(0, 0, 0, 0.11);
 }
 
+/* On dark the black drop shadow is invisible, so the active card wouldn't read as
+ * elevated. Substitute a brighter border (and keep the shadow for depth on the
+ * rare light-on-dark backdrop). */
+.agent-sessions-workbench.vs-dark .session-view.multi-session.is-active {
+	border-color: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+}
+
 /* ------------------------------------------------------------------------- *
  * In-progress "comet" border around the card
  *
@@ -63,6 +79,13 @@
  * ------------------------------------------------------------------------- */
 .session-view.working {
 	--chat-input-working-border-color1: rgba(0, 0, 0, 0.55);
+}
+
+/* The inactive-session comet defaults to translucent black, which is invisible
+ * on a dark shell — use translucent white there instead. The active comet keeps
+ * the blue focus colour in both themes. */
+.agent-sessions-workbench.vs-dark .session-view.working {
+	--chat-input-working-border-color1: rgba(255, 255, 255, 0.45);
 }
 
 .session-view.working.is-active {

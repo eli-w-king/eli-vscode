@@ -174,6 +174,14 @@
 	background-color: color-mix(in srgb, var(--vscode-agents-background) 30%, transparent);
 }
 
+/* Dark themes: the native vibrancy material is dark, so a low-opacity tint lets
+ * a busy/colourful backdrop bleed through and read muddy. Use a more solid tint
+ * so the shell reads as calm dark glass (still translucent, just less see-through)
+ * and the cards/text keep their contrast. */
+.monaco-workbench.mac.agent-sessions-workbench.vs-dark {
+	background-color: color-mix(in srgb, var(--vscode-agents-background) 58%, transparent);
+}
+
 /* Reveal the frost layer through the otherwise-gray title bar and grid. The
  * title bar is nested inside the workbench grid (not a direct child), so this is
  * a descendant selector. The title bar paints its background from the theme as

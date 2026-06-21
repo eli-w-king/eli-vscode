@@ -57,6 +57,17 @@
 	box-shadow: 0 18px 56px 0 rgba(0, 0, 0, 0.19), 0 6px 18px 0 rgba(0, 0, 0, 0.11);
 }
 
+/* On dark the focus drop shadow is invisible, so a borderless input card has no
+ * separation from the dock/shell. Give it a resting hairline light border (in
+ * every state) so it reads as a distinct surface; the higher-specificity
+ * vs-dark prefix wins over the forced-transparent rules above. */
+.monaco-workbench.vs-dark .shared-chat-input-view .interactive-session .chat-input-container,
+.monaco-workbench.vs-dark .shared-chat-input-view .interactive-session .chat-input-container.focused,
+.monaco-workbench.vs-dark .shared-chat-input-view .interactive-session .chat-input-container.working,
+.monaco-workbench.vs-dark .shared-chat-input-view .interactive-session .chat-input-container.working.focused {
+	border-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
 /* Make the inner editor match the white card background (no gray inset box).
  * Target the monaco background element directly — it is not always nested under
  * `.monaco-editor` in this widget. */
