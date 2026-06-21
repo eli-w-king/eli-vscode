@@ -112,12 +112,20 @@
 	.session-icon {
 		display: flex;
 		align-items: flex-start;
+		justify-content: center;
+		/* Fixed-width, centered box so every status glyph (read/unread dot,
+		 * spinner, error, check, …) occupies the same footprint — keeping the
+		 * icon left edges and the title column aligned across all rows
+		 * regardless of which glyph is shown. */
+		width: 16px;
+		flex-shrink: 0;
 		line-height: 17px;
 		/* Anchor for outgoing icons during a cross-fade swap (see swapIconWithCrossfade). */
 		position: relative;
 
 		> .codicon {
 			flex-shrink: 0;
+			width: 16px;
 			font-size: var(--vscode-codiconFontSize, 16px);
 			height: 16px;
 			display: flex;

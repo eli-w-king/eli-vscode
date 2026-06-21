@@ -66,8 +66,6 @@ import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { buildSessionHoverContent } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
@@ -237,7 +235,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
-		private readonly sessionsProvidersService: ISessionsProvidersService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 	) {
@@ -300,15 +297,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// renders. This reaches into a Copilot-provider internal and must be
 		// moved into the provider — see the note on the import above.
 		this.agentSessionsService.model.observeSession(element.resource);
-
-		// Rich hover on the row showing folder, branch, diff stats and provider.
-		// Shown to the right of the row, similar to the extensions list.
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-			content: buildSessionHoverContent(element, this.sessionsProvidersService),
-			appearance: { showPointer: true },
-			position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-			persistence: { hideOnHover: false },
-		}), { groupId: 'sessions-list' }));
 
 		// Toolbar context
 		template.titleToolbar.context = element;
@@ -812,7 +800,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
-		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
@@ -822,7 +809,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
-			sessionsProvidersService,
 			agentSessionsService,
 		);
 

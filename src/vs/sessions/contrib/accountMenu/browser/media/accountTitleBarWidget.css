@@ -69,6 +69,69 @@
 	display: none;
 }
 
+/* In the sidebar footer the account widget renders as a labeled profile row —
+ * avatar + GitHub name, left-aligned and full-width — rather than the compact
+ * square avatar button used in the titlebar. */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget {
+	width: 100%;
+	min-width: 0;
+	height: 26px;
+	box-sizing: border-box;
+	justify-content: flex-start;
+	gap: 8px;
+	padding: 0 6px;
+}
+
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget-avatar {
+	width: 20px;
+	height: 20px;
+}
+
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget-icon {
+	font-size: 18px;
+}
+
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget-label {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	text-align: left;
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	color: var(--vscode-foreground);
+}
+
+/* Anchor the status dot to the right end of the row, vertically centered. */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget-badge.dot-badge {
+	top: 50%;
+	right: 8px;
+	transform: translateY(-50%);
+}
+
+/* Use the same highlight as the session-list rows above — `list-hoverBackground`
+ * fill with the existing medium-radius rounded shape and 10px inset (from the
+ * footer margin) — so the footer profile row reads consistently with the list,
+ * instead of the toolbar's gray fill + blue focus outline. */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget:hover,
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .action-item:focus-within .sessions-account-titlebar-widget,
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget:active,
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget.menu-visible {
+	background: var(--vscode-list-hoverBackground);
+}
+
+/* Suppress the mouse-focus outline (the list rows use a fill, not an outline),
+ * but keep a keyboard-only focus ring for accessibility. */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .action-item:focus-within .sessions-account-titlebar-widget {
+	outline: none;
+}
+
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 /* Spacing between titlebar-right action items (account widget, update indicator, etc.) */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {

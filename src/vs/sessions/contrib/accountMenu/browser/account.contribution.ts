@@ -295,7 +295,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
-		this.labelElement.textContent = '';
+		this.labelElement.textContent = this.accountName ?? state.label;
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
 		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
@@ -594,16 +594,16 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 // --- Register custom view item --- //
 
-// Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
-// toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
-// view items registered in AccountWidgetContribution.
+// Actions registered at module level so Menus.SidebarFooter is non-empty when the
+// footer toolbar is first constructed. The run() is a no-op — rendering is handled by the
+// custom view items registered in AccountWidgetContribution.
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SessionsTitleBarAccountWidgetAction,
 			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
 			menu: {
-				id: Menus.TitleBarRightLayout,
+				id: Menus.SidebarFooter,
 				group: 'navigation',
 				order: 100,
 				when: IsAuxiliaryWindowContext.toNegated(),
@@ -624,7 +624,7 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
+		this._register(actionViewItemService.register(Menus.SidebarFooter, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
 	}

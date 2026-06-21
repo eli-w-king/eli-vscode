@@ -218,7 +218,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				return { ...Codicon.circleFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 
