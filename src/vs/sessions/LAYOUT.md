@@ -37,9 +37,11 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Titlebar | Top, full width | Always visible | Session picker, toggle actions, account widget |
 | Sidebar | Left, below titlebar | Visible | Sessions list |
 | Sessions Part | Center of right section | Visible | Grid of one or more session views (each rendering the active chat of its session) |
-| Editor | In grid, beside Sessions Part | Hidden | Shown for explicit editor workflows |
-| Auxiliary Bar | Right side | Visible | Changes view, file tree |
+| Editor | In grid, beside Sessions Part | Hidden | Shown modally for file/diff workflows |
+| Auxiliary Bar | Right side | Hidden (retired) | Formerly Changes/file tree — now superseded by the per-card lower region |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
+
+> **Per-card lower region.** The Changes/Files auxiliary-bar panel has been retired. Each session card's area under the title separator (the `.session-view-content` slot) shows the chat **transcript** by default, or a simplified per-card **Files** tree / **Changes** list, toggled from the session header: the folder label toggles Files and the diff stats toggle Changes (mutually exclusive; click the open trigger again to return to the transcript). The panels are bound to that card's own session (`InCardFilesView` / `InCardChangesView`, created via the `IChatViewFactory` seam) and a row click opens the file/diff in the modal editor over the cards. The shared input is disabled while the active card shows Files/Changes. See `SessionView` (lower-region state) and `SessionHeader` (triggers). The auxiliary bar is kept hidden by `SessionLayoutController._syncAuxiliaryBarVisibility`, and the title-bar **Toggle Side Panel** button was removed.
 
 ### 2.2 Grid Tree
 

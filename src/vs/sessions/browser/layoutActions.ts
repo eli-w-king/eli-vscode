@@ -17,7 +17,6 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, MainEditorAreaVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 import { logSidePanelToggle } from '../common/sessionsTelemetry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -94,14 +93,10 @@ class ToggleSidePanelAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
 			},
-			menu: [
-				{
-					id: Menus.TitleBarSessionMenu,
-					group: 'navigation',
-					order: 11, // After Open in VS Code (7), Run Script (8), and Open Terminal (10)
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				}
-			]
+			// No title-bar button: the auxiliary-bar Changes/Files panel was retired
+			// in favour of the per-card lower region, so the editor area is the only
+			// thing the side panel would reveal and it opens modally. The command +
+			// keybinding remain for power users.
 		});
 	}
 

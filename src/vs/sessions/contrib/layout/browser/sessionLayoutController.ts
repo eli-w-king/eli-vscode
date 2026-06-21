@@ -21,13 +21,10 @@ import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/s
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 
 interface IPendingTurnState {
 	readonly hadChangesBeforeSend: boolean;
@@ -72,7 +69,6 @@ export class LayoutController extends Disposable {
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IPaneCompositePartService private readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -182,7 +178,6 @@ export class LayoutController extends Disposable {
 		if (!(isWeb && isMobile)) {
 			this._register(autorun((reader) => {
 				const activeSession = this._sessionsService.activeSession.read(reader);
-				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 				if (!activeSession) {
 					return;
 				}
@@ -202,12 +197,8 @@ export class LayoutController extends Disposable {
 					return;
 				}
 
-				if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-					// Clear saved view state so the aux bar stays visible on next switch
-					this._viewStateBySession.delete(activeSession.resource);
-				}
-
+				// The auxiliary-bar Changes panel was retired (changes now live in the
+				// per-card lower region), so a completed turn no longer auto-reveals it.
 				this._pendingTurnStateByResource.delete(activeSession.resource);
 			}));
 
@@ -339,46 +330,16 @@ export class LayoutController extends Disposable {
 		});
 	}
 
-	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
+	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, _isUntitled: boolean, _hasChanges: boolean): void {
 		if (!sessionResource || !hasWorkspace) {
 			return;
 		}
 
-		// On session switch or initial load, restore the saved view state.
-		// Untitled sessions never carry meaningful saved state.
-		const savedState = isUntitled ? undefined : this._viewStateBySession.get(sessionResource);
-
-		// Honor an explicitly hidden auxiliary bar for this session.
-		if (savedState && !savedState.auxiliaryBarVisible) {
-			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			return;
-		}
-
-		// Restore the user's last explicit auxiliary bar choice (Files, Changes or
-		// any other pane), but only if that pane is still pinned. If it was hidden /
-		// unpinned (e.g. the user hid the Files tab) we skip it and fall through to
-		// the default below rather than force-opening a hidden pane.
-		const savedContainerId = savedState?.auxiliaryBarActiveViewContainerId;
-		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
-			this._viewsService.openViewContainer(savedContainerId, false);
-			return;
-		}
-
-		// Default for a session without a saved choice (e.g. fresh or untitled):
-		// prefer Changes when the session has changes. Otherwise show the Files
-		// pane, unless the user has hidden/unpinned it — in which case fall back to
-		// Changes rather than force-opening Files.
-		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
-			this._viewsService.openView(CHANGES_VIEW_ID, false);
-		} else {
-			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
-		}
-	}
-
-	private _isAuxiliaryBarContainerPinned(containerId: string): boolean {
-		return this._paneCompositePartService
-			.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar)
-			.includes(containerId);
+		// The auxiliary-bar Changes/Files panel was retired in favour of the
+		// per-card lower region (toggled from the session header — see SessionView
+		// / SessionHeader). Keep the auxiliary bar hidden so the secondary panel
+		// never surfaces.
+		this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
 
 	private _loadState(): void {
