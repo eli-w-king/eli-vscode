@@ -158,7 +158,10 @@ export class ChatView extends AbstractChatView {
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
-				isSessionsWindow: true
+				isSessionsWindow: true,
+				// Breathing room below the last message so the transcript doesn't
+				// end flush against the card edge.
+				paddingBottom: 24
 			},
 			this._buildStyles(this._isActive)
 		));

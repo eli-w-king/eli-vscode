@@ -52,6 +52,13 @@ export interface IChatListWidgetOptions {
 	readonly defaultElementHeight?: number;
 
 	/**
+	 * Extra empty space reserved below the last item so the transcript has
+	 * breathing room at the bottom instead of the last message sitting flush
+	 * against the container edge.
+	 */
+	readonly paddingBottom?: number;
+
+	/**
 	 * DOM node for overflow widgets (e.g., code editors).
 	 */
 	readonly overflowWidgetsDomNode?: HTMLElement;
@@ -371,6 +378,7 @@ export class ChatListWidget extends Disposable {
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
+				paddingBottom: options.paddingBottom,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {

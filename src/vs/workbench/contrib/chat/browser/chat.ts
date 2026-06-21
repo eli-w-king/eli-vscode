@@ -278,6 +278,11 @@ export interface IChatWidgetViewOptions {
 		telemetrySource?: string;
 	};
 	defaultElementHeight?: number;
+	/**
+	 * Extra empty space reserved below the last transcript item so the last
+	 * message has breathing room instead of sitting flush against the bottom.
+	 */
+	paddingBottom?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
