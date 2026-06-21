@@ -167,7 +167,10 @@ import '../workbench/contrib/externalTerminal/electron-browser/externalTerminal.
 // Webview
 import '../workbench/contrib/webview/electron-browser/webview.contribution.js';
 
-// Browser
+// Browser view services (browser tunnel proxy / CDP — required by agent-host
+// auth and account sign-in; the integrated-browser UX itself is not surfaced in
+// the Agents window, see sessions.instructions.md "Control Plane, Not a Preview
+// Surface").
 import '../workbench/contrib/browserView/electron-browser/browserView.contribution.js';
 
 // Splash

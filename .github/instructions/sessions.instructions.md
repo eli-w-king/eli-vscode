@@ -119,6 +119,17 @@ Narrow, self-contained `contains()`/`isAncestor()` checks against an element's *
 
 Known anti-pattern to migrate away from: `isActionableControl` in `browser/parts/sessionsPart.ts`, which uses `closest()` with a hardcoded selector of foreign action-bar/button/editor classes to decide whether a click should promote a session to active. The correct design is for the session view / chat content to signal activation explicitly (option 1 above).
 
+## Control Plane, Not a Preview Surface
+
+The Agents window is a **control plane** for orchestrating agent sessions — **not** a preview surface for the software being built. Keep it fully agentic:
+
+- **Do not add embedded browser / live-preview surfaces** to the Agents window (no integrated browser editor, no "open in browser" / live-preview panes for the user's app, task builds, or dev servers). The window coordinates agents; it does not render the product under development.
+- **Previewing and browser testing belong to the agent**, not the workbench UI. When a session needs to exercise a web app, a task build, or a running dev server, the agent should drive it with **Playwright** (the Playwright MCP server / `@playwright/cli`) or equivalent headless tooling from within its own run — navigating, screenshotting, and asserting programmatically — rather than surfacing a browser tab in the window.
+- This applies to the software users are building too (e.g. task builds, local servers): the agent starts/exercises them via its tools and reports results back into the session transcript; the window does not embed their UI.
+- Webviews that are part of *chat/agent rendering* (markdown, chat output, customization editors) are fine — the rule is specifically about **product preview / embedded browsing** surfaces.
+
+When in doubt: if a feature would render *the user's running software* inside the Agents window, it does not belong here — route it through the agent's Playwright/headless tooling instead.
+
 ## Learnings
 
 - Always check `src/vs/sessions/LAYERS.md` before adding cross-module imports — layering violations are enforced by ESLint and will fail CI.

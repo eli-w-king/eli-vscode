@@ -201,6 +201,9 @@ import '../workbench/contrib/issue/browser/issue.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
+// Browser view services (browser tunnel proxy — required by agent-host auth /
+// account sign-in; the integrated-browser UX is not surfaced in the Agents
+// window, see sessions.instructions.md "Control Plane, Not a Preview Surface").
 import '../workbench/contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion
