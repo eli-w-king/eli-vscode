@@ -8,67 +8,41 @@
  *
  * When the sessions sidebar is collapsed (see SidebarPart + ISessionsSidebarService)
  * the `.sliver` class is added to the part container and the width is pinned to a
- * narrow rail. In this state the session list, search bar, and title row are hidden
- * to maximize space for the session views; only the compact, icon-only primary
- * actions (New + Customizations) and the account avatar remain, plus the control
- * to expand back to the full list.
+ * narrow rail. In this state the session list is hidden to maximize space for the
+ * session views; only the footer remains — the New / Customizations / Expand action
+ * icons stacked above the account avatar, anchored to the bottom of the rail.
  * ------------------------------------------------------------------------- */
 
-/* Expand control — only shown in the rail (the full-list title row that hosts the
- * collapse control is hidden here). Floats at the top, centered. */
-.agent-sessions-workbench .part.sidebar .sessions-sliver-expand {
-	display: none;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .sessions-sliver-expand {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 38px;
-	z-index: 10;
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	-webkit-app-region: no-drag;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .sessions-sliver-expand:hover {
-	color: var(--vscode-foreground);
-}
-
-/* Hide the session list and the collapse control (the expand control replaces it). */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-actions,
+/* Hide the session list in the rail. */
 .agent-sessions-workbench .part.sidebar.sliver .agent-sessions-control-container {
 	display: none;
 }
 
-/* Leave room for the floating expand control above the buttons. */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-content {
-	padding-top: 38px;
-}
-
-/* Stack the icon-only primary actions vertically, centered in the rail. */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-row {
-	flex-direction: column;
+/* Footer: stack the account avatar and the action icons vertically, centered and
+ * anchored to the bottom of the rail. `column-reverse` keeps the avatar (first in
+ * DOM) at the very bottom with the action icons above it. */
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer {
+	flex-direction: column-reverse;
 	align-items: center;
 	gap: 6px;
-	padding: 0 4px;
-	min-height: 0;
+	margin: 0 4px 2px 4px;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label {
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-account,
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-actions {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+/* Action icons stack vertically in the rail. */
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-actions .actions-container {
 	flex-direction: column;
-	align-items: center;
 	gap: 6px;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button,
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-label .agent-sessions-customizations-button.monaco-button {
-	width: 30px;
-	height: 30px;
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-actions .action-item .action-label {
+	width: 28px;
+	height: 28px;
 }
 
 /* Footer account widget → avatar only, centered. */
@@ -80,4 +54,10 @@
 
 .agent-sessions-workbench .part.sidebar.sliver .sidebar-footer .sessions-account-titlebar-widget-label {
 	display: none;
+}
+
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-account .actions-container,
+.agent-sessions-workbench .part.sidebar.sliver > .sidebar-footer > .sidebar-footer-account .action-item {
+	width: auto;
+	max-width: none;
 }

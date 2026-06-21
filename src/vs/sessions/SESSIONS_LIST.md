@@ -12,7 +12,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 
 | File | Purpose |
 |------|---------|
-| `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
+| `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with sort/group/filter persistence and the find widget host. Primary actions (New Session, Customizations, collapse/expand rail) live in the sidebar footer (`Menus.SidebarFooterActions`), not a list header. On phone a header row hosts the find widget. |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
 | `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |

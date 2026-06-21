@@ -307,31 +307,25 @@
 	}
 }
 
-/* Show More */
+/* Show More
+ *
+ * Left-aligned to the same 44px text column as the workspace/section headers
+ * and session titles (one clean left text edge), with no flanking rule lines —
+ * a quiet inline affordance that brightens on hover. */
 
 .session-show-more {
 	display: flex;
-	justify-content: center;
 	align-items: center;
-	padding: 0 10px;
+	justify-content: flex-start;
+	padding: 0 10px 0 44px;
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: pointer;
 
 	.session-show-more-label {
-		padding: 0 6px;
 		flex-shrink: 0;
 		white-space: nowrap;
-	}
-
-	/* Lines on both sides of the text */
-	&::before,
-	&::after {
-		content: '';
-		flex: 1;
-		height: 1px;
-		background: var(--vscode-widget-border, var(--vscode-contrastBorder));
 	}
 }
 
@@ -339,22 +333,10 @@
 	color: var(--vscode-foreground);
 }
 
-/* Folders show-more/show-less: align with the workspace section headers (same
- * 44px text column as headers / session titles / account name). */
+/* Folders show-more/show-less: same alignment as the workspace section headers,
+ * with a slightly stronger weight to read as a group toggle. */
 .session-show-more.session-show-more-folders {
-	justify-content: flex-start;
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-	padding: 0 10px 0 44px;
-
-	.session-show-more-label {
-		padding: 0;
-	}
-
-	/* No surrounding separator lines for the folders show-more/less item */
-	&::before,
-	&::after {
-		content: none;
-	}
 }
 
 /* Section Header

@@ -40,6 +40,7 @@ export const ActiveSessionsContext = new RawContextKey<string>('activeSessions',
 export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
 export const SessionsVisibleContext = new RawContextKey<boolean>('sessionsVisible', false, localize('sessionsVisible', "Whether the sessions part is visible"));
 export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multipleSessionsVisible', false, localize('multipleSessionsVisible', "Whether more than one session is visible in the sessions part's grid"));
+export const SessionsSidebarSliveredContext = new RawContextKey<boolean>('sessionsSidebarSlivered', false, localize('sessionsSidebarSlivered', "Whether the sessions sidebar is collapsed to the narrow status rail (sliver)"));
 
 //#endregion
 

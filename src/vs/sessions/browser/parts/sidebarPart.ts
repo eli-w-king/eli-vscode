@@ -8,6 +8,7 @@ import './media/sidebarPart.css';
 import './media/sidebarSliver.css';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from '../../../workbench/services/layout/browser/layoutService.js';
 import { SidebarFocusContext, ActiveViewletContext } from '../../../workbench/common/contextkeys.js';
+import { SessionsSidebarSliveredContext } from '../../common/contextkeys.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -16,7 +17,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
 import { agentsPanelForeground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { LayoutPriority } from '../../../base/browser/ui/grid/grid.js';
@@ -33,16 +34,13 @@ import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
-import { $, append, addDisposableListener, EventType, getWindowId, prepend } from '../../../base/browser/dom.js';
+import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 import { autorun } from '../../../base/common/observable.js';
-import { Codicon } from '../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { localize } from '../../../nls.js';
 import { ISessionsSidebarService } from '../../services/sessions/browser/sessionsSidebarService.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
@@ -62,6 +60,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly MARGIN_BOTTOM = 0;
 	static readonly MARGIN_LEFT = 0;
 	private static readonly FOOTER_ITEM_HEIGHT = 26;
+	private static readonly SLIVER_FOOTER_ITEM_HEIGHT = 30;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
 	private static readonly FOOTER_BOTTOM_MARGIN = 2;
@@ -73,6 +72,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private footerContainer: HTMLElement | undefined;
 	private sideBarTitleArea: HTMLElement | undefined;
 	private footerToolbar: MenuWorkbenchToolBar | undefined;
+	private footerActionsToolbar: MenuWorkbenchToolBar | undefined;
+	private sliveredContextKey: IContextKey<boolean> | undefined;
 	private previousLayoutDimensions: { width: number; height: number; top: number; left: number } | undefined;
 
 	/** Whether the sidebar is collapsed to the narrow status rail. */
@@ -156,24 +157,18 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			configurationService,
 		);
 
+		this.sliveredContextKey = SessionsSidebarSliveredContext.bindTo(contextKeyService);
+
 		this._register(autorun(reader => {
-			this.updateSlivered(this.sessionsSidebarService.slivered.read(reader));
+			const slivered = this.sessionsSidebarService.slivered.read(reader);
+			this.sliveredContextKey?.set(slivered);
+			this.updateSlivered(slivered);
 		}));
 	}
 
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 		this.createFooter(parent);
-
-		// The expand control is only shown while collapsed (the full-list header,
-		// which hosts the collapse control, is hidden in the rail). Visibility is
-		// driven by the `.sliver` class on the part container via CSS.
-		const expandButton = append(parent, $('.sessions-sliver-expand' + ThemeIcon.asCSSSelector(Codicon.layoutSidebarLeft)));
-		expandButton.setAttribute('role', 'button');
-		expandButton.tabIndex = 0;
-		expandButton.title = localize('expandSessionsList', "Expand Sessions");
-		expandButton.setAttribute('aria-label', expandButton.title);
-		this._register(addDisposableListener(expandButton, EventType.CLICK, () => this.sessionsSidebarService.setSlivered(false)));
 
 		// Sync the DOM with the current (possibly persisted) sliver state now that
 		// the container exists.
@@ -253,29 +248,50 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const footer = append(parent, $('.sidebar-footer.sidebar-action-list'));
 		this.footerContainer = footer;
 
-		this.footerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, footer, Menus.SidebarFooter, {
+		const relayout = () => {
+			if (this.previousLayoutDimensions) {
+				const { width, height, top, left } = this.previousLayoutDimensions;
+				this.layout(width, height, top, left);
+			}
+		};
+
+		// Account widget (avatar + GitHub handle). Fills the available width so
+		// the action icons sit flush to the right edge in the expanded list.
+		const accountContainer = append(footer, $('.sidebar-footer-account'));
+		this.footerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, accountContainer, Menus.SidebarFooter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'sidebarFooter',
 		}));
 
-		this._register(this.footerToolbar.onDidChangeMenuItems(() => {
-			if (this.previousLayoutDimensions) {
-				const { width, height, top, left } = this.previousLayoutDimensions;
-				this.layout(width, height, top, left);
-			}
+		// Primary actions (New Session, Customizations, collapse/expand rail) —
+		// borderless icons, right-aligned and inline with the account widget.
+		const actionsContainer = append(footer, $('.sidebar-footer-actions'));
+		this.footerActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SidebarFooterActions, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: { primaryGroup: () => true },
+			telemetrySource: 'sidebarFooterActions',
 		}));
+
+		this._register(this.footerToolbar.onDidChangeMenuItems(relayout));
+		this._register(this.footerActionsToolbar.onDidChangeMenuItems(relayout));
 	}
 
 	private getFooterHeight(): number {
-		const actionCount = this.footerToolbar?.getItemsLength() ?? 0;
-		if (actionCount === 0) {
+		const accountCount = this.footerToolbar?.getItemsLength() ?? 0;
+		const actionCount = this.footerActionsToolbar?.getItemsLength() ?? 0;
+		if (accountCount === 0 && actionCount === 0) {
 			return 0;
 		}
 
+		// Expanded: the account widget and the action icons share a single row.
+		// Sliver: they stack vertically (avatar at the bottom, icons above).
+		const rows = this._slivered ? (accountCount + actionCount) : Math.max(accountCount, 1);
+		const itemHeight = this._slivered ? SidebarPart.SLIVER_FOOTER_ITEM_HEIGHT : SidebarPart.FOOTER_ITEM_HEIGHT;
+
 		return SidebarPart.FOOTER_VERTICAL_PADDING * 2
-			+ (actionCount * SidebarPart.FOOTER_ITEM_HEIGHT)
-			+ ((actionCount - 1) * SidebarPart.FOOTER_ITEM_GAP)
+			+ (rows * itemHeight)
+			+ ((rows - 1) * SidebarPart.FOOTER_ITEM_GAP)
 			+ SidebarPart.FOOTER_BOTTOM_MARGIN
 			+ SidebarPart.FOOTER_BORDER_TOP;
 	}

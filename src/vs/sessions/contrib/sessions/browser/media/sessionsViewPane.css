@@ -73,7 +73,9 @@
 		display: none;
 	}
 
-	/* Compact toolbar row: icon-only New + Customizations (left), collapse (right) */
+	/* Compact toolbar row (phone only): holds the find widget when search is
+	 * opened. On desktop the primary actions live in the sidebar footer and the
+	 * list header is not rendered. */
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
@@ -82,62 +84,6 @@
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
-	}
-
-	/* Left group: icon buttons */
-	.agent-sessions-header-label {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		min-width: 0;
-	}
-
-	.agent-sessions-header-actions {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		margin-left: auto;
-		flex-shrink: 0;
-	}
-
-	/* Icon-only primary action buttons (New + Customizations) — flat, ghost */
-	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button,
-	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		min-width: 0;
-		height: 28px;
-		padding: 0;
-		border: none;
-		border-radius: var(--vscode-cornerRadius-medium, 6px);
-		background-color: transparent;
-		color: var(--vscode-icon-foreground, var(--vscode-foreground));
-	}
-
-	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button:not(.disabled),
-	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button:not(.disabled) {
-		cursor: pointer;
-	}
-
-	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button.default-colors:hover,
-	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
-		color: var(--vscode-foreground);
-	}
-
-	.agent-sessions-header-label .agent-sessions-compact-new-button.monaco-button:focus,
-	.agent-sessions-header-label .agent-sessions-customizations-button.monaco-button:focus {
-		outline-offset: -1px !important;
-	}
-
-	.agent-sessions-compact-new-button-icon,
-	.agent-sessions-customizations-button-icon {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 16px;
 	}
 
 	.agent-sessions-control-container {
@@ -157,43 +103,3 @@
 	background: transparent !important;
 }
 
-/* Sessions-app-specific overrides for the agent sessions viewer.
- * These styles only apply within the agent-sessions-workbench context. */
-
-.agent-sessions-workbench {
-
-	/*
-	 * Show-more / show-less: content always rendered, list row height
-	 * controls visibility (1px = clipped, 26px = visible).
-	 * Height animation is driven by JS (requestAnimationFrame) since
-	 * the virtualized list uses absolute positioning.
-	 */
-	.agent-session-show-more {
-		justify-content: center;
-		align-items: center;
-		padding: 0 6px;
-		font-size: var(--vscode-agents-fontSize-label2, 11px);
-		color: var(--vscode-descriptionForeground);
-		min-height: 26px;
-
-		.agent-session-show-more-label {
-			padding: 0 6px;
-			flex-shrink: 0;
-			white-space: nowrap;
-		}
-
-		/* Lines on both sides of the text as flex items */
-		&::before,
-		&::after {
-			content: '';
-			flex: 1;
-			height: 1px;
-			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
-		}
-	}
-
-	/* Brighter text on direct hover */
-	.monaco-list-row:hover .agent-session-show-more:hover {
-		color: var(--vscode-foreground);
-	}
-}

@@ -19,7 +19,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionsSidebarSliveredContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -32,6 +32,8 @@ import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksA
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsSidebarService } from '../../../../services/sessions/browser/sessionsSidebarService.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { aiCustomizationViewIcon } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -228,17 +230,49 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 	}
 });
 
-//  View Title Menu
+//  Sidebar Footer Actions (New session, Customizations, Collapse/Expand rail)
 
-registerAction2(class CollapseSessionsToRailAction extends Action2 {
+// New Session — references the real command so its keybinding hint is shown.
+MenuRegistry.appendMenuItem(Menus.SidebarFooterActions, {
+	command: {
+		id: NEW_SESSION_ACTION_ID,
+		title: localize2('newSessionFooter', "New Session"),
+		icon: Codicon.add,
+	},
+	when: IsPhoneLayoutContext.negate(),
+	group: 'navigation',
+	order: 10,
+});
+
+// Customizations — references the real command (it carries its own sparkle icon).
+MenuRegistry.appendMenuItem(Menus.SidebarFooterActions, {
+	command: {
+		id: 'workbench.action.agentOpenCustomizations',
+		title: localize2('customizationsFooter', "Customizations"),
+		icon: aiCustomizationViewIcon,
+	},
+	when: IsPhoneLayoutContext.negate(),
+	group: 'navigation',
+	order: 20,
+});
+
+// Collapse / expand the session list to the narrow status rail. A single
+// toggle whose icon and title swap with the slivered state.
+registerAction2(class ToggleSessionsRailAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.collapseToRail',
+			id: 'sessionsViewPane.toggleRail',
 			title: localize2('collapseSessionsToRail', "Collapse Session List"),
 			icon: Codicon.layoutSidebarLeftOff,
+			toggled: {
+				condition: SessionsSidebarSliveredContext,
+				icon: Codicon.layoutSidebarLeft,
+				title: localize('expandSessionsFromRail', "Expand Session List"),
+			},
 			f1: false,
 			menu: {
-				id: Menus.SidebarSessionsTitleActions,
+				id: Menus.SidebarFooterActions,
+				when: IsPhoneLayoutContext.negate(),
 				group: 'navigation',
 				order: 30,
 			},
@@ -246,7 +280,7 @@ registerAction2(class CollapseSessionsToRailAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(ISessionsSidebarService).setSlivered(true);
+		accessor.get(ISessionsSidebarService).toggleSlivered();
 	}
 });
 

@@ -538,6 +538,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, false, ConfigurationTarget.USER);
 		}
+		// Drive the native macOS vibrancy material from the chosen app theme
+		// rather than the OS appearance. With `auto`, the main process maps the
+		// stored base theme to the window's native theme source, so a light
+		// theme over a dark OS no longer keeps a dark frosted backdrop.
+		if (this.configurationService.getValue(ThemeSettings.SYSTEM_COLOR_THEME) !== 'auto') {
+			await this.configurationService.updateValue(ThemeSettings.SYSTEM_COLOR_THEME, 'auto', ConfigurationTarget.USER);
+		}
 		await this.themeService.setColorTheme(target.id, 'auto');
 	}
 

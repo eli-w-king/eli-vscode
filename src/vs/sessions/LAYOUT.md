@@ -202,7 +202,7 @@ Key differences from standard workbench parts:
 - **Fixed composite bar** — for pane-composite parts the position is always `Title`; the sidebar hides its composite bar (only the sessions list shows)
 - **Card appearance** — each session view and the docked input render as rounded cards with gaps; the Sessions Part itself is transparent so the gaps reveal the shell/frost. The Auxiliary Bar and Panel also render as cards with rounded borders and margins; the Sidebar is flush
 - **Separate storage keys** — each part uses `workbench.agentsession.*` keys to avoid conflicts with regular workbench state
-- **Sidebar footer** — a menu-driven toolbar below the sessions list, hosting the account widget
+- **Sidebar footer** — a two-toolbar row below the sessions list: the account widget (avatar + handle) fills the left, and the primary action icons (New Session, Customizations, collapse/expand rail) are borderless and right-aligned, inline with the account widget. In the collapsed rail the footer stacks as a centered column (`column-reverse`) with the action icons above the avatar, bottom-anchored. The actions are registered to `Menus.SidebarFooterActions` and hidden on phone (`IsPhoneLayoutContext.negate()`), where they live on the mobile top bar instead.
 - **macOS traffic lights** — sidebar includes a spacer (70px) for window controls when using custom titlebar
 
 ---
