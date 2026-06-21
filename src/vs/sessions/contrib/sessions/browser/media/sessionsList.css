@@ -339,10 +339,12 @@
 	color: var(--vscode-foreground);
 }
 
-/* Folders show-more/show-less: align with workspace section headers. */
+/* Folders show-more/show-less: align with the workspace section headers (same
+ * 44px text column as headers / session titles / account name). */
 .session-show-more.session-show-more-folders {
 	justify-content: flex-start;
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	padding: 0 10px 0 44px;
 
 	.session-show-more-label {
 		padding: 0;
@@ -355,15 +357,23 @@
 	}
 }
 
-/* Section Header */
-
+/* Section Header
+ *
+ * The label is aligned with the session TITLE column (not the row's left edge):
+ * session items render a status icon in a leading gutter, so their titles start
+ * 34px in from the row's content edge. Indenting the header by the same amount
+ * makes the workspace/section labels, the session titles, and the account name
+ * in the footer all share one clean left text edge, with the status icons (and
+ * account avatar) hanging in the gutter to their left. Keep this in sync with
+ * `.session-item` (padding-left 12 + 16px icon + `.session-main` padding-left 6
+ * + the row's 10px margin = 44px). */
 .session-section {
 	display: flex;
 	align-items: center;
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
-	padding: 0 10px;
+	padding: 0 10px 0 44px;
 
 	.session-section-label {
 		flex: 1 1 auto;
