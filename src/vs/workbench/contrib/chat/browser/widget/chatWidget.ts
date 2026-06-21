@@ -2941,7 +2941,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+		// The 950px cap keeps a transcript at a comfortable reading width. Input-only
+		// widgets (renderTranscript: false — e.g. the Agents window shared input dock)
+		// have no transcript and are meant to span their full host width, so skip the
+		// cap for them as well as for minimal/inline chat.
+		if (this.viewOptions.renderStyle !== 'minimal' && this._renderTranscript) {
+			width = Math.min(width, 950);
+		}
 
 		this.bodyDimension = new dom.Dimension(width, height);
 

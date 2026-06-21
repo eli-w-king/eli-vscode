@@ -65,6 +65,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
 	private static readonly FOOTER_BOTTOM_MARGIN = 2;
 	private static readonly FOOTER_BORDER_TOP = 1;
+	/**
+	 * Extra space reserved below the footer in the collapsed rail. The footer is
+	 * the last element in the part's block flow, so the visible gap beneath the
+	 * avatar equals (reserved footer height minus rendered footer height).
+	 * Reserving a little more here lifts the stacked icons + avatar off the bottom
+	 * edge so they aren't jammed against the window's rounded corner.
+	 */
+	private static readonly SLIVER_FOOTER_BOTTOM_GAP = 10;
 
 	/** Fixed width of the collapsed status rail (the "sliver"). */
 	private static readonly SLIVER_WIDTH = 38;
@@ -293,7 +301,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			+ (rows * itemHeight)
 			+ ((rows - 1) * SidebarPart.FOOTER_ITEM_GAP)
 			+ SidebarPart.FOOTER_BOTTOM_MARGIN
-			+ SidebarPart.FOOTER_BORDER_TOP;
+			+ SidebarPart.FOOTER_BORDER_TOP
+			+ (this._slivered ? SidebarPart.SLIVER_FOOTER_BOTTOM_GAP : 0);
 	}
 
 	private updateFooterVisibility(): void {

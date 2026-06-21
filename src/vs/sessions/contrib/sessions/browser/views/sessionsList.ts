@@ -132,7 +132,13 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 * `sessionsList.css`.
 	 */
 	private static readonly ITEM_HEIGHT_PHONE = 76;
-	private static readonly SECTION_HEIGHT = 26;
+	/**
+	 * Workspace/folder section headers get a taller row than a list item so the
+	 * muted label has ~50% more vertical breathing room and reads as a clear group
+	 * divider instead of getting lost between sessions. The label is centered, so
+	 * the extra height becomes padding above and below the text.
+	 */
+	private static readonly SECTION_HEIGHT = 39;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 
 	constructor(
@@ -885,6 +891,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		));
+
+		// Sticky scroll is driven by the global `workbench.tree.enableStickyScroll`
+		// setting and ignores per-tree construction options. The agents window keeps
+		// workspace/folder headers in normal flow — a sticky header floating over the
+		// frosted, semi-transparent rows reads as a muddy overlap — so force it off.
+		this.tree.updateOptions({ enableStickyScroll: false });
 
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;

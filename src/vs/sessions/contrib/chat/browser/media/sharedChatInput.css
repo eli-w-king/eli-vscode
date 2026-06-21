@@ -21,11 +21,14 @@
 }
 
 /* The standalone input part is normally inset (margin + padding) to align under
- * a centered transcript. In the full-width dock there is no transcript above it,
- * so collapse that inset and let the dock's own gutter provide the gap — this
- * makes the input span the full editor width. Forced because the base rule sets
- * a horizontal inset at equal specificity. */
+ * a centered transcript, and capped to a 950px reading width (see
+ * `.part.sessionspart .interactive-input-part` in browser/media/style.css). In
+ * the full-width dock there is no transcript above it, so collapse that inset
+ * and drop the width cap — let the dock's own gutter provide the gap and the
+ * input span the full editor width. Forced because the base rules set the inset
+ * and cap at equal specificity. */
 .monaco-workbench .shared-chat-input-view .interactive-input-part {
+	max-width: none !important;
 	padding: 2px 0 6px !important;
 	margin: 0 !important;
 }
