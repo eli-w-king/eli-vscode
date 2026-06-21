@@ -32,7 +32,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { ResourceContextKey, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -482,6 +482,9 @@ export class AttachContextAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat.negate(),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					// The agents window removes the add-context (+) button from the
+					// docked input.
+					IsSessionsWindowContext.negate(),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments

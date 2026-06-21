@@ -164,12 +164,12 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	/* Cap the hosted input to a comfortable composer width and center it so it
-	 * floats as its own card rather than stretching full width. */
-	align-items: center;
-	/* Horizontal padding here must match SessionsPart.SHARED_INPUT_PADDING_H.
-	 * The bottom padding keeps the input card off the part's bottom edge. */
-	padding: 0 12px 6px;
+/* The input spans the full editor area (stretch), inset to line up with the
+ * session cards above it. Horizontal padding must match
+ * SessionsPart.SHARED_INPUT_PADDING_H and the cards' CARD_GAP. The bottom
+ * padding matches the side gaps so the input card has an even margin. */
+align-items: stretch;
+padding: 0 5px 5px;
 	background: transparent;
 }
 

@@ -16,7 +16,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -25,6 +24,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../../workbenc
 import { IChat } from '../../../services/sessions/common/session.js';
 import { ISharedChatInput } from '../../../services/chatView/browser/chatViewFactory.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
+import { getRandomChatInputPlaceholder } from './newChatInput.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground } from '../../../common/theme.js';
 
 /**
@@ -85,14 +85,15 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
-				inputEditorMinLines: 2,
-				isSessionsWindow: true
+				inputEditorMinLines: 1,
+				isSessionsWindow: true,
+				inputPlaceholderOverride: getRandomChatInputPlaceholder(),
 			},
 			{
 				listForeground: activeSessionViewForeground,
 				listBackground: activeSessionViewBackground,
 				overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
-				inputEditorBackground: inputBackground,
+				inputEditorBackground: activeSessionViewBackground,
 				resultEditorBackground: agentsPanelBackground,
 			}
 		));

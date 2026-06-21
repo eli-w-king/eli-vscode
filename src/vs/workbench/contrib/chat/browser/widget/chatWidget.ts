@@ -1960,6 +1960,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			fullWidthInput: this.viewOptions.isSessionsWindow && this.viewOptions.renderTranscript === false,
 		};
 
 		if (this.viewModel?.editing) {
@@ -2219,7 +2220,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.setViewModel(this.viewModel);
 		}
 
-		if (this._lockedAgent) {
+		if (this.viewOptions.inputPlaceholderOverride) {
+			this.viewModel.setInputPlaceholder(this.viewOptions.inputPlaceholderOverride);
+			if (this._renderInput) {
+				this.inputEditor.updateOptions({ placeholder: this.viewOptions.inputPlaceholderOverride });
+			}
+		} else if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);

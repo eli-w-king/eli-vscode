@@ -37,11 +37,12 @@
 	}
 }
 
-/* In the side-by-side layout, give the active card a quiet persistent border so
- * it stays identifiable even when idle. Scoped to `.multi-session` because a
+/* In the side-by-side layout, give the active card a persistent focus border so
+ * it stays identifiable even when idle. Uses the full `focusBorder` so it matches
+ * the docked input's focus ring exactly. Scoped to `.multi-session` because a
  * lone card is trivially the active one. The working comet overrides this. */
 .session-view.multi-session.is-active {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent);
+	border-color: var(--vscode-focusBorder);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -67,13 +68,18 @@
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
+	/* Hairline ring: keep both the beam and its halo at 1px so the comet reads
+	 * as a thin, premium line rather than a thick band. */
 	padding: 1px;
+	/* A tight bright head with a smooth fading tail; the rest of the ring stays
+	 * fully transparent so only the travelling comet is visible. */
 	background: conic-gradient(from var(--chat-input-anim-angle, 135deg),
 		transparent 0deg,
-		color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
-		var(--chat-input-working-border-color1) 30deg,
-		color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
-		transparent 90deg,
+		transparent 6deg,
+		color-mix(in srgb, var(--chat-input-working-border-color1) 65%, transparent) 24deg,
+		var(--chat-input-working-border-color1) 32deg,
+		color-mix(in srgb, var(--chat-input-working-border-color1) 35%, transparent) 48deg,
+		transparent 78deg,
 		transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
@@ -88,9 +94,11 @@
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration, 4s) linear infinite;
 }
 
+/* Soft halo: same hairline, gently blurred and dimmed so the comet has a premium
+ * glow that traces its head without adding visible thickness. */
 .session-view.working::after {
-	padding: 2px;
-	filter: blur(1.5px);
+	filter: blur(2.5px);
+	opacity: 0.55;
 }
 
 @media (prefers-reduced-motion: reduce) {

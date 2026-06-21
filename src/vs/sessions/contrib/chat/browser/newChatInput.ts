@@ -107,7 +107,7 @@ const RANDOM_PLACEHOLDERS = [
 ];
 
 let lastPlaceholderIndex = -1;
-function getRandomChatInputPlaceholder(): string {
+export function getRandomChatInputPlaceholder(): string {
 	let index = Math.floor(Math.random() * RANDOM_PLACEHOLDERS.length);
 	if (index === lastPlaceholderIndex) {
 		index = (index + 1) % RANDOM_PLACEHOLDERS.length;

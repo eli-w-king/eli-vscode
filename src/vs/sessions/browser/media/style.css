@@ -569,6 +569,16 @@
 	box-sizing: border-box;
 }
 
+/* Remove the per-response footer in the agents window: the hover/end-of-turn
+ * action buttons (rerun, copy, thumbs up/down) and the model name + credits
+ * details. The simplified agents chat does not surface these. Scoped to the
+ * session transcripts so other chat surfaces are unaffected. The `noFooter`
+ * renderer option can't be used because `lockToCodingAgent` (always active in
+ * the agents window) resets it to `false`. */
+.agent-sessions-workbench .part.sessionspart .chat-footer-toolbar {
+	display: none !important;
+}
+
 /* Let request bubbles that contain a code block grow to fit the code editor. */
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block) {

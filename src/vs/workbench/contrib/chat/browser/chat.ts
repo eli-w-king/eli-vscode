@@ -315,6 +315,12 @@ export interface IChatWidgetViewOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/**
+	 * When set, overrides the input placeholder text (taking precedence over an
+	 * agent-provided placeholder). Used by the docked agents-window input to show
+	 * a friendly new-session-style prompt.
+	 */
+	inputPlaceholderOverride?: string;
 }
 
 export interface IChatViewViewContext {

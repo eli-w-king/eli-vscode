@@ -18,7 +18,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowConte
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -289,47 +289,6 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	}
 });
 
-// -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
-// Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
-// and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
-
-for (let index = 0; index < 9; index++) {
-	const position = index + 1;
-	const isLast = position === 9;
-	registerAction2(class FocusSessionByPositionAction extends Action2 {
-		constructor() {
-			super({
-				id: `sessions.focusSessionInGrid${position}`,
-				title: isLast
-					? localize2('focusLastSessionInGrid', "Focus Last Session in Grid")
-					: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
-				f1: true,
-				category: SessionsCategories.Sessions,
-				keybinding: {
-					weight: KeybindingWeight.SessionsContrib,
-					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
-					when: IsSessionsWindowContext,
-				},
-			});
-		}
-
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsService = accessor.get(ISessionsService);
-			const sessionsPartService = accessor.get(ISessionsPartService);
-
-			const visible = sessionsService.visibleSessions.get();
-			const targetIndex = isLast ? visible.length - 1 : index;
-			if (targetIndex < 0 || targetIndex >= visible.length) {
-				return;
-			}
-
-			const session = visible[targetIndex];
-			sessionsService.setActive(session);
-			sessionsPartService.focusSession(session);
-		}
-	});
-}
-
 // -- Close All Sessions --
 
 registerAction2(class CloseAllSessionsAction extends Action2 {
@@ -360,12 +319,6 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			id: 'sessions.chatCompositeBar.addChat',
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
-				group: 'navigation',
-				order: 10,
-			},
 		});
 	}
 
@@ -390,12 +343,6 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				condition: SessionIsStickyContext,
 				icon: Codicon.pinned,
 				title: localize('chatCompositeBar.unpin', "Unpin Session"),
-			},
-			menu: {
-				id: Menus.SessionBarToolbar,
-				group: '1_session',
-				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
 			},
 		});
 	}
@@ -483,12 +430,6 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 				condition: SessionIsMaximizedContext,
 				icon: Codicon.screenNormal,
 				title: localize('chatCompositeBar.unmaximize', "Restore Session"),
-			},
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: MultipleSessionsVisibleContext,
-				group: '1_session',
-				order: 20,
 			},
 		});
 	}

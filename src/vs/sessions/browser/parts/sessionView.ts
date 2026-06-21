@@ -390,15 +390,6 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.setActive(active);
 	}
 
-	/**
-	 * Surfaces (or clears) the keyboard shortcut that focuses this session as a
-	 * native-style pill in the header. Used by the shared-input layout to make
-	 * session switching discoverable. See {@link SessionHeader.setShortcutHint}.
-	 */
-	setShortcutHint(label: string | undefined): void {
-		this._header.setShortcutHint(label);
-	}
-
 	private _applyActiveSessionStyles(): void {
 		const background = this._isActive ? SessionView.ACTIVE_BACKGROUND : SessionView.INACTIVE_BACKGROUND;
 		const foreground = this._isActive ? SessionView.ACTIVE_FOREGROUND : SessionView.INACTIVE_FOREGROUND;

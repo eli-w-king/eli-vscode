@@ -5,10 +5,13 @@
 
 /* The shared chat input used when multiple sessions are visible. It is hosted
  * in the dock at the bottom of the sessions part (see sessionsPart.css); this
- * rule just makes the hosted input span the dock width. */
+ * rule makes the hosted input span the dock width. The docked input is a white
+ * card, so override the gray `agentsChatInput.background` token (used by
+ * chatInput.css for the input/editor background) to the white panel colour. */
 .shared-chat-input-view {
 	width: 100%;
 	box-sizing: border-box;
+	--vscode-agentsChatInput-background: var(--vscode-agentsPanel-background);
 }
 
 /* The hosted chat widget is input-only (no transcript), so let it size to its
@@ -17,20 +20,38 @@
 	height: auto;
 }
 
-/* The standalone input part is normally inset by 32px to align under a centered
- * transcript. In the full-width dock there is no transcript above it, so that
- * inset just becomes dead whitespace — collapse it and let the dock's own
- * padding provide a tight, even gutter. */
-.shared-chat-input-view .interactive-input-part {
-	padding: 2px 0 6px;
+/* The standalone input part is normally inset (margin + padding) to align under
+ * a centered transcript. In the full-width dock there is no transcript above it,
+ * so collapse that inset and let the dock's own gutter provide the gap — this
+ * makes the input span the full editor width. Forced because the base rule sets
+ * a horizontal inset at equal specificity. */
+.monaco-workbench .shared-chat-input-view .interactive-input-part {
+	padding: 2px 0 6px !important;
+	margin: 0 !important;
 }
 
-/* The docked input floats as its own card below the session cards: give the
- * input container a solid card background + rounded corners so it stays legible
- * over the (possibly frosted/translucent) shell behind the dock. */
-.shared-chat-input-view .interactive-session .chat-input-container {
-	background-color: var(--vscode-input-background, var(--vscode-agentsPanel-background));
+/* The docked input is its own white card below the session cards: it uses the
+ * pure-white panel background and rounded corners so it stays legible over the
+ * (possibly frosted/translucent) shell behind the dock. The border is hidden
+ * until the input is focused, where it shows a quiet focus ring. Forced because
+ * shared chat styles set a gray input background/border at higher specificity. */
+.monaco-workbench .shared-chat-input-view .interactive-session .chat-input-container {
+	background-color: var(--vscode-agentsPanel-background) !important;
 	border-radius: var(--vscode-cornerRadius-large);
+	border-color: transparent !important;
+}
+
+.monaco-workbench .shared-chat-input-view .interactive-session .chat-input-container.focused {
+	border-color: var(--vscode-focusBorder) !important;
+}
+
+/* Make the inner editor match the white card background (no gray inset box).
+ * Target the monaco background element directly — it is not always nested under
+ * `.monaco-editor` in this widget. */
+.monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor,
+.monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor-background,
+.monaco-workbench .shared-chat-input-view .interactive-input-editor .monaco-editor .margin {
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 /* Progress is shown on the session card border (blue active / black inactive),
@@ -38,4 +59,68 @@
 .shared-chat-input-view .interactive-session .chat-input-container.working::before,
 .shared-chat-input-view .interactive-session .chat-input-container.working::after {
 	display: none;
+}
+
+/* Lay the single bottom toolbar out as one row: model/mode pickers on the left,
+ * then the permissions (moved up from the old secondary strip) right next to
+ * them, with the send button pushed to the far right. Never wrap. */
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars {
+	flex-wrap: nowrap;
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-input-toolbar {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
+}
+
+/* The secondary toolbar (now in the primary row) holds only the permissions
+ * picker here. Size it to its content and hide the empty spacer containers
+ * (context usage / status / generic chips) so it sits tight to the model config
+ * instead of collapsing to zero width or wrapping to a second line. */
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-secondary-toolbar {
+	flex: 0 0 auto;
+	width: auto;
+	padding: 0;
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-secondary-toolbar > .chat-context-usage-container,
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-secondary-toolbar > .chat-input-status-container,
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-secondary-toolbar > .chat-secondary-generic-chips {
+	display: none;
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars .chat-secondary-input-toolbar,
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars .chat-secondary-input-toolbar .actions-container {
+	flex: 0 0 auto;
+	width: auto;
+	min-width: 0;
+	overflow: visible;
+}
+
+/* Vertical separator between the model/mode config (left) and the permissions
+ * picker that was moved up from the old secondary strip. Positioned + sized to
+ * match the shorter, centered dividers between the model-config pickers (rather
+ * than a full-height border). */
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars .chat-secondary-input-toolbar {
+	position: relative;
+	padding-left: 12px;
+	margin-left: 4px;
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars .chat-secondary-input-toolbar::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background: var(--vscode-input-border, var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+}
+
+.monaco-workbench .shared-chat-input-view .chat-input-toolbars > .chat-execute-toolbar {
+	margin-left: auto;
 }

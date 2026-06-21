@@ -7,7 +7,6 @@ import './media/sessionsPart.css';
 import { localize } from '../../../nls.js';
 import { status } from '../../../base/browser/ui/aria/aria.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -70,25 +69,15 @@ export class SessionsPart extends Part {
 	static readonly BORDER_WIDTH = 1;
 
 	/**
-	 * Docked shared-input box sizing. The box is a flush full-width footer at the
-	 * bottom of the part that reserves real layout space (the grid shrinks to sit
-	 * above it) rather than floating over the transcripts.
-	 *
-	 * `SHARED_INPUT_PADDING_H` is the horizontal inset between the dock edge and
-	 * the hosted input; it must match the horizontal padding declared on
-	 * `.sessions-shared-input-dock` in sessionsPart.css. The vertical extent
-	 * (padding + the session label) is measured from the laid-out dock, so it is
-	 * owned entirely by CSS.
+	 * Docked input sizing. The input spans the full editor area and is aligned
+	 * with the session cards above it: `SHARED_INPUT_PADDING_H` is the horizontal
+	 * inset between the dock edge and the hosted input, and matches the session
+	 * cards' own gap ({@link SessionView.CARD_GAP}) so the input's left/right
+	 * edges line up with the cards. It must match the horizontal padding on
+	 * `.sessions-shared-input-dock` in sessionsPart.css. The vertical extent is
+	 * measured from the laid-out dock, so it is owned entirely by CSS.
 	 */
-	static readonly SHARED_INPUT_PADDING_H = 12;
-
-	/**
-	 * Maximum width of the hosted input inside the dock. The dock spans the full
-	 * part width, but the input is capped to a generous composer width and
-	 * centered so it uses as much room as it comfortably can without the toolbars
-	 * stretching apart into a sparse, lopsided bar on very wide windows.
-	 */
-	static readonly SHARED_INPUT_MAX_WIDTH = 1100;
+	static readonly SHARED_INPUT_PADDING_H = 5;
 
 	/** Internal grid that hosts the part's session views. */
 	protected _gridWidget: SerializableGrid<SessionView> | undefined;
@@ -159,7 +148,6 @@ export class SessionsPart extends Part {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -312,9 +300,9 @@ export class SessionsPart extends Part {
 
 		// Mark the active session's element. `is-active` drives the active card
 		// treatment (blue working comet, active border); `multi-session` scopes the
-		// idle active-border cue + the keyboard shortcut pills to the side-by-side
-		// layout so a lone session card is never accented. Set here (alongside
-		// `is-active`) so both apply reliably on every reconcile.
+		// idle active-border cue to the side-by-side layout so a lone session card
+		// is never accented. Set here (alongside `is-active`) so both apply reliably
+		// on every reconcile.
 		const activeId = active?.sessionId;
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
@@ -322,10 +310,6 @@ export class SessionsPart extends Part {
 			slot.view.element.classList.toggle('is-active', isActive);
 			slot.view.element.classList.toggle('multi-session', multiSession);
 			slot.view.setActive(isActive);
-			// Surface the keyboard shortcut that focuses this column so switching
-			// between side-by-side sessions is discoverable. Only shown in the
-			// multi-session layout and only for bound sessions.
-			this._updateSlotShortcutHint(slot, multiSession && slot.boundSessionId !== undefined ? i : -1);
 		}
 
 		this._activeSession = active;
@@ -449,32 +433,18 @@ export class SessionsPart extends Part {
 
 		let reserved = 0;
 		if (this._sharedInputVisible && this._sharedInput && this._sharedInputDock) {
-			const available = Math.max(0, contentWidth - 2 * SessionsPart.SHARED_INPUT_PADDING_H);
-			const innerWidth = Math.min(available, SessionsPart.SHARED_INPUT_MAX_WIDTH);
+			// The input spans the full editor area, inset by the same gap as the
+			// session cards so its edges line up with them.
+			const innerWidth = Math.max(0, contentWidth - 2 * SessionsPart.SHARED_INPUT_PADDING_H);
 
 			// Lay out the hosted input first, then measure the dock (input height
 			// + CSS vertical padding) so the grid's inner height matches the
-			// flex-allocated space above the dock. The input is capped to a
-			// comfortable width and centered by the dock (align-items: center).
+			// flex-allocated space above the dock.
 			this._sharedInput.layout(innerWidth);
 			reserved = this._sharedInputDock.offsetHeight;
 		}
 
 		this._gridWidget.layout(contentWidth, Math.max(0, contentHeight - reserved), top, left);
-	}
-
-	/**
-	 * Shows or hides the keyboard shortcut that focuses a session column (e.g.
-	 * `⌘1`) as a native-style pill in its header, making side-by-side session
-	 * switching discoverable. Pass a zero-based grid index to show the shortcut
-	 * for that position, or a negative index to hide it. Positions beyond the
-	 * `sessions.focusSessionInGrid1..9` commands (index >= 9) show nothing.
-	 */
-	private _updateSlotShortcutHint(slot: IGridSlot, index: number): void {
-		const label = index >= 0 && index < 9
-			? this.keybindingService.lookupKeybinding(`sessions.focusSessionInGrid${index + 1}`)?.getLabel() ?? undefined
-			: undefined;
-		slot.view.setShortcutHint(label);
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {

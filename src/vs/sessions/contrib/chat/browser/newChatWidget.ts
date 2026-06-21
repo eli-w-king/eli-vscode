@@ -276,11 +276,10 @@ export class NewChatWidget extends Disposable {
 
 		this._workspacePicker.render(pickersRow);
 
-		if (!this._renderHarnessPickerInControls) {
-			const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
-			withLabel.textContent = localize('newSessionWith', "with");
-			this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
-		}
+		// The agents window uses a single harness (Copilot CLI) as the default, so
+		// the "with <harness>" picker is intentionally not rendered — the concept
+		// of picking a harness is removed. The session type picker object still
+		// exists and drives the default selection during session creation.
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const folderUri = this._workspacePicker.selectedFolderUri;
 			pickersLabel.textContent = folderUri

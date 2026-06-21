@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { $, addDisposableGenericMouseDownListener, append } from '../../../../base/browser/dom.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -31,7 +30,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -179,7 +178,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarCenterRight,
+			Menus.SessionBarToolbar,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
@@ -529,9 +528,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
  */
 class RunScriptActionViewItem extends BaseActionViewItem {
 
-	private readonly _primaryActionAction: Action;
-	private readonly _primaryAction: ActionViewItem;
-	private readonly _dropdown: ChevronActionWidgetDropdown;
+	private readonly _dropdown: PlayActionWidgetDropdown;
 
 	constructor(
 		action: IAction,
@@ -550,29 +547,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 	) {
 		super(undefined, action);
 
-		const state = this._activeRunState.get();
-		const isPrimaryEnabled = !!state && (state.tasks.length > 0 || state.pinnedBrowser);
-
-		// Primary action button - runs the pinned task (or first task when none is pinned)
-		this._primaryActionAction = this._register(new Action(
-			'agentSessions.runScriptPrimary',
-			this._getPrimaryActionTooltip(state),
-			ThemeIcon.asClassName(Codicon.play),
-			isPrimaryEnabled,
-			() => this._commandService.executeCommand(RUN_SCRIPT_ACTION_PRIMARY_ID)
-		));
-		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
-
-		// Update enabled state when tasks change
-		this._register(autorun(reader => {
-			const runState = this._activeRunState.read(reader);
-			this._primaryActionAction.enabled = !!runState && (runState.tasks.length > 0 || runState.pinnedBrowser);
-			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
-		}));
-
-		// Dropdown with categorized task actions and per-item toolbars
-		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
-		this._dropdown = this._register(new ChevronActionWidgetDropdown(
+		// Dropdown with categorized task actions and per-item toolbars. The
+		// trigger renders a play icon and opens the menu on click.
+		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runTask', "Run Task")));
+		this._dropdown = this._register(new PlayActionWidgetDropdown(
 			dropdownAction,
 			{
 				actionProvider: { getActions: () => this._getDropdownActions() },
@@ -588,73 +566,24 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('monaco-dropdown-with-default');
+		container.classList.add('run-script-dropdown-button');
 
-		// Primary action button
-		const primaryContainer = $('.action-container');
-		this._primaryAction.render(append(container, primaryContainer));
-		this._register(addDisposableListener(primaryContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.RightArrow)) {
-				this._primaryAction.blur();
-				this._dropdown.focus();
-				event.stopPropagation();
-			}
-		}));
-
-		// Dropdown arrow button
-		const dropdownContainer = $('.dropdown-action-container');
-		this._dropdown.render(append(container, dropdownContainer));
-		this._register(addDisposableListener(dropdownContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.LeftArrow)) {
-				this._dropdown.setFocusable(false);
-				this._primaryAction.focus();
-				event.stopPropagation();
-			}
-		}));
+		// Render only the dropdown (with a play icon): clicking the button opens
+		// the task dropdown directly, rather than splitting into a primary "run"
+		// action and a separate chevron.
+		this._dropdown.render(container);
 	}
 
-	override focus(fromRight?: boolean): void {
-		if (fromRight) {
-			this._dropdown.focus();
-		} else {
-			this._primaryAction.focus();
-		}
+	override focus(): void {
+		this._dropdown.focus();
 	}
 
 	override blur(): void {
-		this._primaryAction.blur();
 		this._dropdown.blur();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		this._primaryAction.setFocusable(focusable);
-		if (!focusable) {
-			this._dropdown.setFocusable(false);
-		}
-	}
-
-	private _getPrimaryActionTooltip(state: IRunScriptActionContext | undefined): string {
-		const keybindingLabel = this._keybindingService.lookupKeybinding(RUN_SCRIPT_ACTION_PRIMARY_ID)?.getLabel();
-		const withKeybinding = (label: string) => keybindingLabel
-			? localize('runActionTooltipKeybinding', "{0} ({1})", label, keybindingLabel)
-			: label;
-
-		if (state?.pinnedBrowser) {
-			return withKeybinding(localize('openBrowserAction', "Open Browser"));
-		}
-
-		if (!state || state.tasks.length === 0) {
-			return localize('runPrimaryTaskTooltip', "Run Primary Task");
-		}
-
-		const primaryTask = getPrimaryTask(state.tasks, state.pinnedTaskLabel)?.task;
-		if (!primaryTask) {
-			return localize('runPrimaryTaskTooltip', "Run Primary Task");
-		}
-
-		return withKeybinding(getTaskDisplayLabel(primaryTask));
+		this._dropdown.setFocusable(focusable);
 	}
 
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
@@ -833,26 +762,26 @@ class RunScriptActionViewItem extends BaseActionViewItem {
  * {@link ActionWidgetDropdownActionViewItem} that renders a chevron-down icon
  * for the split button dropdown in the titlebar.
  */
-class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
+class PlayActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		element.classList.add('codicon', 'codicon-chevron-down');
+		element.classList.add('codicon', 'codicon-play');
 		return null;
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar (background sessions only).
-// Placed in the center-right toolbar at order 6.
-MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
+// Register the Run split button submenu in the session header toolbar, placed
+// just before the Close (X) action so each session card shows [Run][X].
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
 	icon: Codicon.play,
-	group: 'navigation',
-	order: 6,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
+	group: '1_session',
+	order: 20,
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, ActiveSessionWorkspaceIsVirtualContext.toNegated())
 });
 
-// Disabled placeholder shown in the titlebar when the active session does not support running scripts
+// Disabled placeholder shown when the active session does not support running scripts
 class RunScriptNotAvailableAction extends Action2 {
 	constructor() {
 		super({
@@ -862,10 +791,10 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
-				group: 'navigation',
-				order: 6,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
+				id: Menus.SessionBarToolbar,
+				group: '1_session',
+				order: 20,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, ActiveSessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

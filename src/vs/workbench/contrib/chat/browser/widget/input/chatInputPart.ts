@@ -193,6 +193,12 @@ export interface IChatInputPartOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/**
+	 * Whether this input is the docked, full-width composer in the agents window
+	 * (input-only widget with no transcript above it). When true the input part's
+	 * horizontal inset is removed so the editor spans the full dock width.
+	 */
+	fullWidthInput?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -2873,7 +2879,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
-			responsiveBehavior: {
+			// The full-width docked input has ample room, so disable responsive
+			// collapsing — every picker stays fully visible (no truncation, no
+			// "..." overflow menu).
+			responsiveBehavior: this.options.fullWidthInput ? undefined : {
 				enabled: true,
 				kind: 'last',
 				minItems: 1,
@@ -3006,6 +3015,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
 
+		// Agents window: render the secondary toolbar (permissions / context
+		// usage) inline in the primary toolbar row — just before the execute
+		// (send) button — instead of as a separate strip below the input box. This
+		// gives the input card a single bottom toolbar and an even bottom margin
+		// with nothing hanging beneath it.
+		if (this.options.isSessionsWindow && this.options.renderStyle !== 'compact') {
+			toolbarsContainer.insertBefore(this.secondaryToolbarContainer, this.executeToolbar.getElement());
+		}
+
 		// Secondary toolbar (permissions) — below the input box.
 		// Per-action minimum widths (in pixels) for pickers that collapse to an
 		// icon-only label via a CSS container query in `AgentHostChatInputPicker`.
@@ -3035,7 +3053,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
-			responsiveBehavior: {
+			// Disabled for the full-width docked input so the permissions picker
+			// shows its full label instead of collapsing to an icon ("D...").
+			responsiveBehavior: this.options.fullWidthInput ? undefined : {
 				enabled: true,
 				kind: 'all',
 				minItems: 1,
@@ -4270,7 +4290,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// content cards. The editor width is computed here, so it must account
 			// for the same 64px total horizontal gutter or the editor overflows its
 			// container and renders wider than the message content above it.
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24),
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : (this.options.fullWidthInput ? 0 : (this.options.isSessionsWindow ? 64 : 24)),
 			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
