@@ -68,7 +68,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_BORDER_TOP = 1;
 
 	/** Fixed width of the collapsed status rail (the "sliver"). */
-	private static readonly SLIVER_WIDTH = 52;
+	private static readonly SLIVER_WIDTH = 44;
 
 	private footerContainer: HTMLElement | undefined;
 	private sideBarTitleArea: HTMLElement | undefined;

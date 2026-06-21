@@ -230,24 +230,6 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 
 //  View Title Menu
 
-MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterSessions', "Filter Sessions"),
-	icon: Codicon.settings,
-	group: 'navigation',
-	order: 10,
-});
-
-MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-	command: {
-		id: 'sessionsViewPane.find',
-		title: localize2('find', "Find Session"),
-		icon: Codicon.search,
-	},
-	group: 'navigation',
-	order: 20,
-});
-
 registerAction2(class CollapseSessionsToRailAction extends Action2 {
 	constructor() {
 		super({
@@ -256,7 +238,7 @@ registerAction2(class CollapseSessionsToRailAction extends Action2 {
 			icon: Codicon.layoutSidebarLeftOff,
 			f1: false,
 			menu: {
-				id: Menus.SidebarSessionsHeader,
+				id: Menus.SidebarSessionsTitleActions,
 				group: 'navigation',
 				order: 30,
 			},

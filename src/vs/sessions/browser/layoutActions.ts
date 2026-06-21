@@ -50,15 +50,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB
-			},
-			menu: [
-				{
-					id: Menus.TitleBarLeftLayout,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				}
-			]
+			}
 		});
 	}
 

@@ -8,12 +8,13 @@
  *
  * When the sessions sidebar is collapsed (see SidebarPart + ISessionsSidebarService)
  * the `.sliver` class is added to the part container and the width is pinned to a
- * narrow rail. Everything below restyles the sessions list into a vertical column
- * of status dots — keeping per-session status + navigation visible while the user
- * maximizes space for the session views.
+ * narrow rail. In this state the session list, search bar, and title row are hidden
+ * to maximize space for the session views; only the compact, icon-only primary
+ * actions (New + Customizations) and the account avatar remain, plus the control
+ * to expand back to the full list.
  * ------------------------------------------------------------------------- */
 
-/* Expand control — only shown in the rail (the full-list header that hosts the
+/* Expand control — only shown in the rail (the full-list title row that hosts the
  * collapse control is hidden here). Floats at the top, centered. */
 .agent-sessions-workbench .part.sidebar .sessions-sliver-expand {
 	display: none;
@@ -38,76 +39,54 @@
 	color: var(--vscode-foreground);
 }
 
-/* Hide the full-list header (label + New + filter/search + find widget). */
-.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-row {
+/* Hide the full-list chrome: title row, search row, and the session list. */
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-header-row,
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-search-row,
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-control-container {
 	display: none;
 }
 
-/* Leave room for the floating expand control above the first dot. */
+/* Leave room for the floating expand control above the buttons. */
 .agent-sessions-workbench .part.sidebar.sliver .agent-sessions-content {
 	padding-top: 38px;
 }
 
-/* Rows collapse to a centered status dot. */
-.agent-sessions-workbench .part.sidebar.sliver .sessions-list-control .monaco-list-row:has(.session-item) {
-	margin: 0 6px;
-	width: calc(100% - 12px);
+/* Compact, centered, icon-only primary action buttons. */
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-actions-stack {
+	padding: 0 5px;
+	gap: 6px;
+	align-items: center;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .session-item {
-	padding: 6px 0;
-	justify-content: center;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .session-item .session-main {
-	display: none;
-}
-
-/* The open session's dot gets a focus ring instead of a full-row fill. */
-.agent-sessions-workbench .part.sidebar.sliver .monaco-list-row.selected {
-	background: transparent !important;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .monaco-list-row.selected .session-icon::after {
-	content: '';
-	position: absolute;
-	inset: -4px;
-	border-radius: 50%;
-	border: 1px solid var(--vscode-focusBorder);
-}
-
-/* Section headers become a thin, centered group divider. */
-.agent-sessions-workbench .part.sidebar.sliver .session-section {
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button,
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button.monaco-button {
+	width: 30px;
+	min-width: 0;
+	height: 30px;
 	padding: 0;
 	justify-content: center;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .session-section > * {
+/* New button: collapse to a single "+" glyph. */
+.agent-sessions-workbench .part.sidebar.sliver .new-session-button-label {
 	display: none;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .session-section::after {
-	content: '';
-	display: block;
-	width: 18px;
-	height: 1px;
-	background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-compact-new-button::before {
+	content: '+';
+	font-size: 17px;
+	line-height: 1;
 }
 
-/* "+N more" toggles collapse to a centered ellipsis affordance. */
-.agent-sessions-workbench .part.sidebar.sliver .session-show-more::before,
-.agent-sessions-workbench .part.sidebar.sliver .session-show-more::after {
-	content: none;
+/* Customizations button: icon only (the label is hidden, icon revealed). */
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button-label {
+	display: none;
 }
 
-.agent-sessions-workbench .part.sidebar.sliver .session-show-more .session-show-more-label {
-	padding: 0;
-	font-size: 0;
-}
-
-.agent-sessions-workbench .part.sidebar.sliver .session-show-more .session-show-more-label::after {
-	content: '\22EF'; /* ⋯ */
-	font-size: 13px;
+.agent-sessions-workbench .part.sidebar.sliver .agent-sessions-customizations-button .agent-sessions-customizations-button-icon {
+	display: inline-flex;
+	align-items: center;
+	font-size: 15px;
 }
 
 /* Footer account widget → avatar only, centered. */

@@ -327,11 +327,6 @@ export class OpenAgentCustomizationsAction extends Action2 {
 			title: localize2('openAgentCustomizations', "Customizations"),
 			icon: aiCustomizationViewIcon,
 			f1: true,
-			menu: [{
-				id: Menus.SidebarSessionsHeader,
-				group: 'navigation',
-				order: 5,
-			}]
 		});
 	}
 

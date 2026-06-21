@@ -1028,10 +1028,12 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		return !!this.widget;
 	}
 
-	open(): void {
+	open(focus = true): void {
 		if (this.widget) {
-			this.widget.focus();
-			this.widget.select();
+			if (focus) {
+				this.widget.focus();
+				this.widget.select();
+			}
 			return;
 		}
 
@@ -1047,10 +1049,12 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		this.widget.onDidDisable(this.close, this, this.enabledDisposables);
 		this.widget.onDidToggleChange(this.onDidToggleChange, this, this.enabledDisposables);
 
-		this.widget.focus();
-
 		this.widget.value = this.previousPattern;
-		this.widget.select();
+
+		if (focus) {
+			this.widget.focus();
+			this.widget.select();
+		}
 
 		this._onDidChangeOpenState.fire(true);
 	}
@@ -2983,8 +2987,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.triggerTypeNavigation();
 	}
 
-	openFind(): void {
-		this.findController?.open();
+	openFind(focus?: boolean): void {
+		this.findController?.open(focus);
 	}
 
 	closeFind(): void {

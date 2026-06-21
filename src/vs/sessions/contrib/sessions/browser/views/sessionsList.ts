@@ -691,7 +691,7 @@ export interface ISessionsList {
 	layout(height: number, width: number): void;
 	focus(): void;
 	update(expandAll?: boolean): void;
-	openFind(): void;
+	openFind(focus?: boolean): void;
 	closeFind(): void;
 	resetSectionCollapseState(): void;
 	pinSession(session: ISession): void;
@@ -1284,8 +1284,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	openFind(): void {
-		this.tree.openFind();
+	openFind(focus?: boolean): void {
+		this.tree.openFind(focus);
 	}
 
 	closeFind(): void {

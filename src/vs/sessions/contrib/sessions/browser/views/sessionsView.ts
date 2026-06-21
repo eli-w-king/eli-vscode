@@ -6,10 +6,9 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { isWeb, OS } from '../../../../../base/common/platform.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -28,6 +27,8 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { aiCustomizationViewIcon } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -165,36 +166,43 @@ export class SessionsView extends ViewPane {
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
-		// Header row: "Sessions" label (left) + compact "New" button (right)
+		const phoneLayout = isPhoneLayout(this.layoutService);
+
+		// Title row: "Sessions" label (left) + collapse-to-rail control (right).
 		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
-
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
-		// On phone, the desktop header content (label + new button + filter/find toolbar)
-		// is hidden in favor of the mobile filter chip row + the (+) button in the
-		// MobileTitlebarPart. We still create the row container because the find
-		// widget mounts inside it.
-		const phoneLayout = isPhoneLayout(this.layoutService);
+		// The find widget mounts into this container. On desktop it lives in the
+		// always-visible search row below; on phone it stays in the title row and
+		// is toggled by the mobile filter chips.
+		const findWidgetContainer = this.findWidgetContainer = $('.agent-sessions-find-widget-container');
+
 		if (!phoneLayout) {
 			headerLabel.textContent = localize('sessionsHeader', "Sessions");
 
-			// Header actions (visual order: New, Filter, Search)
-			this.createNewSessionButton(headerActions);
-
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
+
+			// Title-row actions: collapse to rail.
+			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsTitleActions, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				telemetrySource: 'sessionsView.header',
+				telemetrySource: 'sessionsView.title',
 				toolbarOptions: { primaryGroup: () => true },
 			}));
+
+			// Stacked, full-width primary actions: New session + Customizations.
+			const actionsStack = DOM.append(sessionsContent, $('.agent-sessions-actions-stack'));
+			this.createNewSessionButton(actionsStack);
+			this.createCustomizationsButton(actionsStack);
+
+			// Full-width search row: always-visible find input.
+			const searchRow = DOM.append(sessionsContent, $('.agent-sessions-search-row'));
+			DOM.append(searchRow, findWidgetContainer);
 		} else {
 			headerRow.classList.add('phone-layout-empty');
+			DOM.append(headerRow, findWidgetContainer);
+			findWidgetContainer.style.display = 'none';
 		}
-
-		// Container for the tree's find widget (toggled by the toolbar's Find action)
-		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
-		findWidgetContainer.style.display = 'none';
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
 		// The actual widget is created after sessionsControl is available.
@@ -228,20 +236,29 @@ export class SessionsView extends ViewPane {
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
-		// Toggle header label/actions visibility when find widget opens/closes
-		this._register(sessionsControl.onDidChangeFindOpenState(open => {
-			this.isFindWidgetOpen = open;
-			findWidgetContainer.style.display = open ? '' : 'none';
-			this.updateHeaderLayout();
-		}));
+		if (phoneLayout) {
+			// On phone the find widget is toggled on demand (mobile filter chips).
+			this._register(sessionsControl.onDidChangeFindOpenState(open => {
+				this.isFindWidgetOpen = open;
+				findWidgetContainer.style.display = open ? '' : 'none';
+				this.updateHeaderLayout();
+			}));
 
-		// Close find widget on Escape
-		this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				sessionsControl.closeFind();
-				e.stopPropagation();
-			}
-		}));
+			// Close find widget on Escape.
+			this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
+				if (e.key === 'Escape') {
+					sessionsControl.closeFind();
+					e.stopPropagation();
+				}
+			}));
+		} else {
+			// On desktop the search bar is always present. Open the find widget
+			// without stealing focus so it renders into the search row.
+			this._register(sessionsControl.onDidChangeFindOpenState(open => {
+				this.isFindWidgetOpen = open;
+			}));
+			sessionsControl.openFind(false);
+		}
 
 		// Sync workspace group capped context key with persisted state
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
@@ -337,15 +354,6 @@ export class SessionsView extends ViewPane {
 
 		const newSessionLabel = localize('newCompact', "New");
 		const buttonLabel = $('span.new-session-button-label', undefined, newSessionLabel);
-		const keybindingHint = $('span.new-session-keybinding-hint');
-		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
-			disableTitle: true,
-			keybindingLabelBackground: 'transparent',
-			keybindingLabelForeground: 'inherit',
-			keybindingLabelBorder: 'transparent',
-			keybindingLabelBottomBorder: undefined,
-			keybindingLabelShadow: undefined,
-		}));
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
@@ -365,33 +373,49 @@ export class SessionsView extends ViewPane {
 			};
 		}));
 
-		let lastRenderedKeybindingLabel: string | undefined | null = null;
 		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
 		const updateNewSessionButton = () => {
 			const keybinding = getNewSessionKeybinding();
-			const keybindingLabel = keybinding?.getLabel() ?? undefined;
 			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
-			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
+			if (lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
 				return;
 			}
 
-			lastRenderedKeybindingLabel = keybindingLabel;
 			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
-
-			keybindingHintLabel.set(keybinding);
-			if (keybinding) {
-				if (keybindingHint.parentElement !== newSessionButton.element) {
-					DOM.append(newSessionButton.element, keybindingHint);
-				}
-			} else {
-				keybindingHint.remove();
-			}
 
 			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
 				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
 				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
 		};
 		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButton));
+	}
+
+	private createCustomizationsButton(container: HTMLElement): void {
+		const button = this._register(new Button(container, {
+			...defaultButtonStyles,
+			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
+			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
+			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
+			secondary: true,
+			supportIcons: true,
+		}));
+		button.element.classList.add('agent-sessions-customizations-button');
+
+		const icon = $('span.agent-sessions-customizations-button-icon');
+		icon.classList.add(...ThemeIcon.asClassNameArray(aiCustomizationViewIcon));
+		const label = $('span.agent-sessions-customizations-button-label', undefined, localize('customizationsButton', "Customizations"));
+		DOM.reset(button.element, icon, label);
+
+		this._register(button.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.agentOpenCustomizations');
+		}));
+
+		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
+			content: localize('customizationsButtonTitle', "Customizations"),
+			appearance: { compact: true },
+			position: { hoverPosition: HoverPosition.BELOW },
+		})));
 	}
 
 	focusCustomizations(): void {
@@ -577,8 +601,8 @@ export class SessionsView extends ViewPane {
 
 	openFind(): void {
 		this.isFindWidgetOpen = true;
-		if (this.findWidgetContainer) {
-			// Show container before opening find so the widget can be focused
+		if (isPhoneLayout(this.layoutService) && this.findWidgetContainer) {
+			// Phone: reveal the on-demand find container before focusing it.
 			this.findWidgetContainer.style.display = '';
 		}
 		this.updateHeaderLayout();
@@ -591,20 +615,12 @@ export class SessionsView extends ViewPane {
 		}
 
 		// On phone the desktop header content is hidden; the row is only
-		// visible when the find widget is open (so the user can search).
+		// visible when the find widget is open (so the user can search). On
+		// desktop the title, actions, and search bar each live in their own
+		// always-visible row, so no toggling is needed.
 		if (isPhoneLayout(this.layoutService)) {
 			this.headerRow.classList.toggle('phone-layout-empty', !this.isFindWidgetOpen);
-			return;
 		}
-
-		if (this.isFindWidgetOpen) {
-			this.headerLabel.style.display = 'none';
-			this.headerActions.style.display = 'none';
-			return;
-		}
-
-		this.headerLabel.style.display = '';
-		this.headerActions.style.display = '';
 	}
 
 	/**

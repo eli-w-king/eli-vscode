@@ -73,12 +73,12 @@
 		display: none;
 	}
 
-	/* Header row: label + action buttons */
+	/* Title row: "Sessions" label + collapse control */
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
-		padding: 8px 10px;
-		min-height: 40px;
+		padding: 10px 10px 6px;
+		min-height: 32px;
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
@@ -103,7 +103,24 @@
 		flex-shrink: 0;
 	}
 
-	/* Inline search input — replaces label + actions when active */
+	/* Stacked, full-width primary actions (New + Customizations) */
+	.agent-sessions-actions-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 0 10px 8px;
+		box-sizing: border-box;
+	}
+
+	/* Full-width search row: clean, minimal find input */
+	.agent-sessions-search-row {
+		display: flex;
+		align-items: center;
+		padding: 0 10px 8px;
+		box-sizing: border-box;
+	}
+
+	/* Inline search input — fills the search row, styled as a clean search box */
 	.agent-sessions-find-widget-container {
 		flex: 1;
 		min-width: 0;
@@ -131,53 +148,91 @@
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
 		display: flex;
 		align-items: center;
-		min-height: 24px;
+		min-height: 28px;
 		box-sizing: border-box;
+		border-radius: var(--vscode-cornerRadius-medium, 6px);
+		background-color: var(--vscode-input-background);
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox > .ibwrapper > .input {
+		padding: 0 8px;
+		font-size: var(--vscode-agents-fontSize-label1, 12px);
+	}
+
+	/* Borderless until focus — match the model picker search field */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput .monaco-inputbox.idle {
+		border: 1px solid transparent;
 	}
 
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
-		top: 1.5px;
+		display: none;
 	}
 
-	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
-	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
-		width: 22px;
-		height: 22px;
-		padding: 0;
+	/* Search is always visible — drop the find widget's close button. */
+	.agent-sessions-search-row .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar {
+		display: none;
+	}
+
+	/* Full-width primary buttons (New + Customizations) — clean, flat, borderless */
+	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button,
+	.agent-sessions-customizations-button.monaco-button {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-	}
-
-	/* Compact "New" button in header */
-	.agent-sessions-compact-new-button.monaco-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
 		gap: 6px;
-		padding: 2px 8px;
-		font-size: var(--vscode-agents-fontSize-label1, 12px);
-		line-height: 18px;
-		border-radius: var(--vscode-cornerRadius-small);
-		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
-		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
-		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
-		width: auto;
+		width: 100%;
 		min-width: 0;
-		height: auto;
+		height: 28px;
+		padding: 0 10px;
+		font-size: var(--vscode-agents-fontSize-label1, 12px);
+		font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+		line-height: 18px;
+		border: none;
+		border-radius: var(--vscode-cornerRadius-medium, 6px);
 		white-space: nowrap;
 	}
 
-	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+	/* "New" — subtle filled primary */
+	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button {
+		background-color: var(--vscode-input-background);
+		color: var(--vscode-foreground);
+	}
+
+	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button.default-colors:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	/* "Customizations" — ghost button */
+	.agent-sessions-customizations-button.monaco-button {
+		background-color: transparent;
+		color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+	}
+
+	.agent-sessions-customizations-button.monaco-button.default-colors:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+
+	.agent-sessions-actions-stack .agent-sessions-compact-new-button.monaco-button:not(.disabled),
+	.agent-sessions-customizations-button.monaco-button:not(.disabled) {
 		cursor: pointer;
 	}
 
-	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
+	.agent-sessions-compact-new-button.monaco-button:focus,
+	.agent-sessions-customizations-button.monaco-button:focus {
+		outline-offset: -1px !important;
 	}
 
-	.agent-sessions-compact-new-button.monaco-button:focus {
-		outline-offset: -1px !important;
+	.agent-sessions-customizations-button .agent-sessions-customizations-button-label {
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Expanded view: label only — the icon is shown only in the collapsed rail. */
+	.agent-sessions-customizations-button .agent-sessions-customizations-button-icon {
+		display: none;
 	}
 
 	.agent-sessions-compact-new-button .new-session-button-label {
@@ -186,41 +241,6 @@
 		gap: 2px;
 		min-width: 0;
 		white-space: nowrap;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint {
-		display: inline-block;
-		flex-shrink: 0;
-		font-family: var(--monaco-monospace-font);
-		font-size: var(--vscode-agents-fontSize-label3, 10px);
-		line-height: 1;
-		padding: 2px 4px;
-		border: var(--vscode-strokeThickness) solid transparent;
-		border-radius: var(--vscode-cornerRadius-xSmall);
-		background-color: var(--vscode-keybindingLabel-background);
-		color: var(--vscode-keybindingLabel-foreground);
-		box-shadow: none;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding {
-		line-height: 1;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
-		margin: 0 1px;
-		padding: 0;
-		min-width: auto;
-		border: 0;
-		background-color: transparent;
-		box-shadow: none;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
-		margin-left: 0;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
-		margin-right: 0;
 	}
 
 	.agent-sessions-control-container {
