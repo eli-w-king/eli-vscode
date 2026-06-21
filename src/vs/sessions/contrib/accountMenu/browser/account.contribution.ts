@@ -23,8 +23,11 @@ import { $, append, disposableWindowInterval, getDomNodePagePosition } from '../
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
+import { IWorkbenchThemeService, ThemeSettings } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
@@ -179,6 +182,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 	) {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
@@ -461,6 +466,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		for (const action of partitioned.personalize) {
 			headerActionBar.push(action, { icon: true, label: false });
 		}
+		headerActionBar.push(panelStore.add(this.createThemeToggleAction()), { icon: true, label: false });
 		if (partitioned.signOut) {
 			headerActionBar.push(partitioned.signOut, { icon: true, label: false });
 		}
@@ -503,6 +509,36 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		return panel;
+	}
+
+	private createThemeToggleAction(): Action {
+		const isDarkNow = isDark(this.themeService.getColorTheme().type);
+		return new Action(
+			'sessionsAccount.toggleColorMode',
+			isDarkNow ? localize('switchToLight', "Switch to Light Mode") : localize('switchToDark', "Switch to Dark Mode"),
+			ThemeIcon.asClassName(Codicon.colorMode),
+			true,
+			() => this.toggleColorMode(),
+		);
+	}
+
+	private async toggleColorMode(): Promise<void> {
+		const goingDark = !isDark(this.themeService.getColorTheme().type);
+		const preferredSettingId = goingDark ? ThemeSettings.PREFERRED_DARK_THEME : ThemeSettings.PREFERRED_LIGHT_THEME;
+		const preferredThemeSettingsId = this.configurationService.getValue<string>(preferredSettingId);
+		const themes = await this.themeService.getColorThemes();
+		const target = themes.find(t => t.settingsId === preferredThemeSettingsId && isDark(t.type) === goingDark)
+			?? themes.find(t => isDark(t.type) === goingDark && t.type !== ColorScheme.HIGH_CONTRAST_DARK && t.type !== ColorScheme.HIGH_CONTRAST_LIGHT);
+		if (!target) {
+			return;
+		}
+
+		// A manual toggle takes control from the OS-follow default, so disable
+		// auto-detection before applying the explicit theme.
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, false, ConfigurationTarget.USER);
+		}
+		await this.themeService.setColorTheme(target.id, 'auto');
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
