@@ -32,17 +32,16 @@
 
 /* The docked input is its own white card below the session cards: it uses the
  * pure-white panel background and rounded corners so it stays legible over the
- * (possibly frosted/translucent) shell behind the dock. The border is hidden
- * until the input is focused, where it shows a quiet focus ring. Forced because
- * shared chat styles set a gray input background/border at higher specificity. */
+ * (possibly frosted/translucent) shell behind the dock. It is the floating bar,
+ * so it always sits at the highest elevation with a soft, high-spread drop
+ * shadow alone — no border — matching the active session card's shadow so the
+ * two read as the same elevation when both are active. Forced because shared
+ * chat styles set a gray background/border at higher specificity. */
 .monaco-workbench .shared-chat-input-view .interactive-session .chat-input-container {
 	background-color: var(--vscode-agentsPanel-background) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	border-color: transparent !important;
-}
-
-.monaco-workbench .shared-chat-input-view .interactive-session .chat-input-container.focused {
-	border-color: var(--vscode-focusBorder) !important;
+	box-shadow: 0 18px 56px 0 rgba(0, 0, 0, 0.22), 0 6px 18px 0 rgba(0, 0, 0, 0.13);
 }
 
 /* Make the inner editor match the white card background (no gray inset box).

@@ -152,10 +152,44 @@
 }
 
 /* The grid takes all the height that the dock does not. `min-height: 0` lets it
- * shrink below its content size so the dock is never pushed off-screen. */
+ * shrink below its content size so the dock is never pushed off-screen.
+ * `overflow: visible` lets the active card's elevation shadow extend into the
+ * gaps between cards rather than being clipped at the grid edge. `isolation`
+ * makes the grid its own stacking context so the active card's `z-index` only
+ * lifts it above its neighbour cards — never above the docked input below, which
+ * paints after the grid and therefore stays at the highest elevation. */
 .monaco-workbench .part.sessionspart > .content > .monaco-grid-view {
 	flex: 1 1 auto;
 	min-height: 0;
+	overflow: visible;
+	isolation: isolate;
+}
+
+/* Let the active session card's elevation shadow extend beyond its grid leaf
+ * (into the gap between cards) instead of being clipped by the internal grid's
+ * scroll containers. Scoped with `:has(.session-view)` to the grid-level
+ * containers that *contain* a session card; the chat transcript lists live
+ * inside a card and contain no nested card, so they keep their own
+ * clipping/scrolling. The grid does not scroll (cards are distributed to fit),
+ * so making these overflow-visible is safe. */
+.monaco-workbench .part.sessionspart .monaco-scrollable-element:has(.session-view),
+.monaco-workbench .part.sessionspart .split-view-container:has(.session-view) {
+	overflow: visible !important;
+}
+
+/* Finally, let the shadow escape the sessions part box itself (and the workbench
+ * grid cell that hosts it) so the active card reads as raised above the whole
+ * panel and its shadow spills toward the (rounded) window edge rather than being
+ * hard-clipped at the part's right/top edges. Scoped with `:has(.part.sessionspart)`
+ * to only the containers that host the sessions part, so the sidebar and
+ * auxiliary bar keep their own clipping and nothing of their content bleeds. */
+.monaco-workbench .part.sessionspart {
+	overflow: visible;
+}
+
+.monaco-workbench .split-view-container:has(.part.sessionspart),
+.monaco-workbench .monaco-scrollable-element:has(.part.sessionspart) {
+	overflow: visible !important;
 }
 
 .monaco-workbench .part.sessionspart .sessions-shared-input-dock {
@@ -166,8 +200,11 @@
 	flex-direction: column;
 /* The input spans the full editor area (stretch), inset to line up with the
  * session cards above it. Horizontal padding must match
- * SessionsPart.SHARED_INPUT_PADDING_H and the cards' CARD_GAP. The bottom
- * padding matches the side gaps so the input card has an even margin. */
+ * SessionsPart.SHARED_INPUT_PADDING_H and the cards' CARD_GAP. Top padding is 0
+ * because the input's own wrappers already add ~6px above the white card; with
+ * the cards' 5px bottom inset this makes the gap above the input match the gap
+ * between the side-by-side cards (2 x CARD_GAP). The bottom padding matches the
+ * side gaps so the input card has an even margin. */
 align-items: stretch;
 padding: 0 5px 5px;
 	background: transparent;

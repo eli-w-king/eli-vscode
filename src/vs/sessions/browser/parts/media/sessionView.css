@@ -37,12 +37,19 @@
 	}
 }
 
-/* In the side-by-side layout, give the active card a persistent focus border so
- * it stays identifiable even when idle. Uses the full `focusBorder` so it matches
- * the docked input's focus ring exactly. Scoped to `.multi-session` because a
- * lone card is trivially the active one. The working comet overrides this. */
+/* In the side-by-side layout, lift the active card so it reads as physically
+ * raised above the others using a soft, high-spread drop shadow (macOS-popover
+ * style) alone — no border. The grid and sessions-part containers are made
+ * overflow-visible (see sessionsPart.css) so the shadow spills into the gaps
+ * between cards and out toward the rounded window edge instead of being cut by a
+ * hard rectangular container edge. `z-index` keeps the card (and its shadow)
+ * above the neighbouring cards instead of being painted over by them. Scoped to
+ * `.multi-session` because a lone card is trivially the active one. The working
+ * comet still draws on top when the session is in progress. */
 .session-view.multi-session.is-active {
-	border-color: var(--vscode-focusBorder);
+	position: relative;
+	z-index: 1;
+	box-shadow: 0 18px 56px 0 rgba(0, 0, 0, 0.22), 0 6px 18px 0 rgba(0, 0, 0, 0.13);
 }
 
 /* ------------------------------------------------------------------------- *
