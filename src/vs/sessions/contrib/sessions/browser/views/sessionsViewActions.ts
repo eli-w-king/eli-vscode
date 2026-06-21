@@ -31,6 +31,7 @@ import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsSidebarService } from '../../../../services/sessions/browser/sessionsSidebarService.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -245,6 +246,26 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	},
 	group: 'navigation',
 	order: 20,
+});
+
+registerAction2(class CollapseSessionsToRailAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.collapseToRail',
+			title: localize2('collapseSessionsToRail', "Collapse Session List"),
+			icon: Codicon.layoutSidebarLeftOff,
+			f1: false,
+			menu: {
+				id: Menus.SidebarSessionsHeader,
+				group: 'navigation',
+				order: 30,
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ISessionsSidebarService).setSlivered(true);
+	}
 });
 
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {

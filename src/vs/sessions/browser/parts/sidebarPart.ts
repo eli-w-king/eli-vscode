@@ -5,6 +5,7 @@
 
 import '../../../workbench/browser/parts/sidebar/media/sidebarpart.css';
 import './media/sidebarPart.css';
+import './media/sidebarSliver.css';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from '../../../workbench/services/layout/browser/layoutService.js';
 import { SidebarFocusContext, ActiveViewletContext } from '../../../workbench/common/contextkeys.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -32,12 +33,17 @@ import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
-import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
+import { $, append, addDisposableListener, EventType, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
+import { autorun } from '../../../base/common/observable.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { localize } from '../../../nls.js';
+import { ISessionsSidebarService } from '../../services/sessions/browser/sessionsSidebarService.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
 /**
@@ -61,18 +67,28 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_BOTTOM_MARGIN = 2;
 	private static readonly FOOTER_BORDER_TOP = 1;
 
+	/** Fixed width of the collapsed status rail (the "sliver"). */
+	private static readonly SLIVER_WIDTH = 52;
+
 	private footerContainer: HTMLElement | undefined;
 	private sideBarTitleArea: HTMLElement | undefined;
 	private footerToolbar: MenuWorkbenchToolBar | undefined;
 	private previousLayoutDimensions: { width: number; height: number; top: number; left: number } | undefined;
 
+	/** Whether the sidebar is collapsed to the narrow status rail. */
+	private _slivered = false;
+	/** Last full-list width, restored when expanding back out of the sliver. */
+	private _expandedWidth = 300;
+
 	//#region IView
 
 	// On web the titlebar hosts an additional host filter combo alongside the
 	// sidebar toggle; use a wider minimum so those controls always fit within
-	// the sidebar's rendered area (below this the sidebar snaps closed).
-	readonly minimumWidth: number = isWeb ? 270 : 170;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	// the sidebar's rendered area (below this the sidebar snaps closed). When
+	// collapsed to the status rail, the width is pinned to SLIVER_WIDTH by
+	// making the minimum and maximum equal.
+	get minimumWidth(): number { return this._slivered ? SidebarPart.SLIVER_WIDTH : (isWeb ? 270 : 170); }
+	get maximumWidth(): number { return this._slivered ? SidebarPart.SLIVER_WIDTH : Number.POSITIVE_INFINITY; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 	override get snap(): boolean { return true; }
@@ -110,6 +126,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionsSidebarService private readonly sessionsSidebarService: ISessionsSidebarService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -138,11 +155,62 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			menuService,
 			configurationService,
 		);
+
+		this._register(autorun(reader => {
+			this.updateSlivered(this.sessionsSidebarService.slivered.read(reader));
+		}));
 	}
 
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 		this.createFooter(parent);
+
+		// The expand control is only shown while collapsed (the full-list header,
+		// which hosts the collapse control, is hidden in the rail). Visibility is
+		// driven by the `.sliver` class on the part container via CSS.
+		const expandButton = append(parent, $('.sessions-sliver-expand' + ThemeIcon.asCSSSelector(Codicon.layoutSidebarLeft)));
+		expandButton.setAttribute('role', 'button');
+		expandButton.tabIndex = 0;
+		expandButton.title = localize('expandSessionsList', "Expand Sessions");
+		expandButton.setAttribute('aria-label', expandButton.title);
+		this._register(addDisposableListener(expandButton, EventType.CLICK, () => this.sessionsSidebarService.setSlivered(false)));
+
+		// Sync the DOM with the current (possibly persisted) sliver state now that
+		// the container exists.
+		this.getContainer()?.classList.toggle('sliver', this._slivered);
+	}
+
+	/**
+	 * Applies a change to the collapsed (status-rail) state: toggles the `.sliver`
+	 * class for CSS, re-reads the width constraints via the grid, and restores the
+	 * previous full-list width when expanding back out.
+	 */
+	private updateSlivered(slivered: boolean): void {
+		if (this._slivered === slivered) {
+			return;
+		}
+
+		// Remember the width to return to before collapsing.
+		if (slivered && this.previousLayoutDimensions && this.previousLayoutDimensions.width > SidebarPart.SLIVER_WIDTH) {
+			this._expandedWidth = this.previousLayoutDimensions.width;
+		}
+
+		this._slivered = slivered;
+		this.getContainer()?.classList.toggle('sliver', slivered);
+
+		// Only drive the grid once the part is part of the layout; on first load
+		// the width constraints are read during the initial layout pass.
+		if (this.getContainer()) {
+			this._onDidChange.fire(undefined);
+
+			if (!slivered) {
+				const current = this.previousLayoutDimensions?.width ?? SidebarPart.SLIVER_WIDTH;
+				const delta = this._expandedWidth - current;
+				if (delta !== 0) {
+					this.layoutService.resizePart(Parts.SIDEBAR_PART, delta, 0);
+				}
+			}
+		}
 	}
 
 	protected override createTitleArea(parent: HTMLElement): HTMLElement | undefined {
