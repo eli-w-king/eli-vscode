@@ -6,17 +6,28 @@
 /* ---- Corner Radius ---- */
 
 /* The agents window rounds everything noticeably more than the base design ramp
- * (~32% over base) for a softer feel. The size tokens are emitted on
+ * (~52% over base) for a softer feel. The size tokens are emitted on
  * `.monaco-workbench`; redefining them on
  * `.monaco-workbench.agent-sessions-workbench` wins by specificity and cascades
  * the bumped values to every cornerRadius-token consumer inside the window.
  * (The `circle` token stays fully round.) */
 .monaco-workbench.agent-sessions-workbench {
-	--vscode-cornerRadius-xSmall: 2.6px;
-	--vscode-cornerRadius-small: 5.3px;
-	--vscode-cornerRadius-medium: 7.9px;
-	--vscode-cornerRadius-large: 10.6px;
-	--vscode-cornerRadius-xLarge: 15.9px;
+	--vscode-cornerRadius-xSmall: 3px;
+	--vscode-cornerRadius-small: 6.1px;
+	--vscode-cornerRadius-medium: 9.1px;
+	--vscode-cornerRadius-large: 12.2px;
+	--vscode-cornerRadius-xLarge: 18.3px;
+}
+
+/* ---- Chat request bubble ---- */
+
+/* The user's message bubble reads as a soft, neutral gray in the agents window
+ * rather than the default translucent selection tint. Override the chat token's
+ * CSS var scoped to the window root (it's emitted on `.monaco-workbench`); a
+ * `color-mix` of the foreground keeps it adaptive across light/dark. */
+.monaco-workbench.agent-sessions-workbench {
+	--vscode-chat-requestBubbleBackground: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
 }
 
 /* ---- Action Bar Items ---- */
