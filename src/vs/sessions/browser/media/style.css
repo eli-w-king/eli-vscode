@@ -19,6 +19,21 @@
 	--vscode-cornerRadius-xLarge: 18.3px;
 }
 
+/* ---- Friendly rounded UI font ---- */
+
+/* The agents window asks for the platform's rounded UI font via the `ui-rounded`
+ * CSS generic (SF Pro Rounded on macOS), falling back to the regular system UI
+ * font — no font is bundled. NOTE: the current Electron/Chromium does not expose
+ * SF Pro Rounded to web content, so today this renders as the normal SF system
+ * font; the declaration is kept so it rounds automatically wherever the generic
+ * is supported. Set on the window root so every inheriting surface picks it up;
+ * the two-class selector beats the base `.monaco-workbench.mac` font rule.
+ * Code/editors keep their own `--monaco-monospace-font` and stay monospace. */
+.monaco-workbench.agent-sessions-workbench {
+	font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+	--vscode-chat-font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
 /* ---- Chat request bubble ---- */
 
 /* The user's message bubble reads as a soft, neutral gray in the agents window
