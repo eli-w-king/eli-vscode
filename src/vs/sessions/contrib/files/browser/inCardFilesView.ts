@@ -18,7 +18,7 @@ import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listSe
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IResourceLabel, ResourceLabels, DEFAULT_LABELS_CONTAINER } from '../../../../workbench/browser/labels.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionLowerRegionView } from '../../../services/chatView/browser/chatViewFactory.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -142,7 +142,7 @@ export class InCardFilesView extends Disposable implements ISessionLowerRegionVi
 		this._register(this._tree.onDidOpen(e => {
 			const stat = e.element;
 			if (stat && !stat.isDirectory) {
-				this._editorService.openEditor({ resource: stat.resource, options: { pinned: false } });
+				this._editorService.openEditor({ resource: stat.resource, options: { pinned: false } }, MODAL_GROUP);
 			}
 		}));
 

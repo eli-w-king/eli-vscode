@@ -26,7 +26,7 @@ import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
 import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
+import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -280,14 +280,6 @@ class OpenModalEditorInEditorAction extends Action2 {
 			title: localize2('openModalEditorInEditor', "Open in Editor Area"),
 			icon: Codicon.openInWindow,
 			f1: false,
-			menu: {
-				id: MenuId.ModalEditorTitle,
-				group: 'navigation',
-				order: 98,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					EditorPartModalContext)
-			}
 		});
 	}
 
@@ -343,6 +335,33 @@ class OpenModalEditorInEditorAction extends Action2 {
 }
 
 registerAction2(OpenModalEditorInEditorAction);
+
+class OpenModalEditorInNewWindowAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openModalEditorInNewWindow';
+
+	constructor() {
+		super({
+			id: OpenModalEditorInNewWindowAction.ID,
+			title: localize2('openModalEditorInNewWindow', "Open in New Window"),
+			icon: Codicon.emptyWindow,
+			f1: false,
+			menu: {
+				id: MenuId.ModalEditorTitle,
+				group: 'navigation',
+				order: 98,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					EditorPartModalContext)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand(MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID);
+	}
+}
+
+registerAction2(OpenModalEditorInNewWindowAction);
 
 class AddFileAsContextAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.addFileAsContext';

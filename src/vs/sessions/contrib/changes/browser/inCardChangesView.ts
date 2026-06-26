@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionLowerRegionView } from '../../../services/chatView/browser/chatViewFactory.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -167,7 +167,7 @@ export class InCardChangesView extends Disposable implements ISessionLowerRegion
 	private async _openChange(row: IChangeRow): Promise<void> {
 		const labels = getChangesEditorLabels(row.uri, this._labelService);
 		if (row.kind === 'deleted' && row.originalUri) {
-			await this._editorService.openEditor({ resource: row.originalUri, ...labels, options: { pinned: false } });
+			await this._editorService.openEditor({ resource: row.originalUri, ...labels, options: { pinned: false } }, MODAL_GROUP);
 			return;
 		}
 		if (row.originalUri && row.modifiedUri) {
@@ -176,10 +176,10 @@ export class InCardChangesView extends Disposable implements ISessionLowerRegion
 				modified: { resource: row.modifiedUri },
 				...labels,
 				options: { pinned: false },
-			});
+			}, MODAL_GROUP);
 			return;
 		}
-		await this._editorService.openEditor({ resource: row.uri, ...labels, options: { pinned: false } });
+		await this._editorService.openEditor({ resource: row.uri, ...labels, options: { pinned: false } }, MODAL_GROUP);
 	}
 
 	layout(width: number, height: number): void {

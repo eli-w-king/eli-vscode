@@ -19,7 +19,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChangesViewPane } from './changesView.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -133,7 +133,7 @@ class OpenChangesAction extends Action2 {
 		await Promise.all(changes.map(change => editorService.openEditor({
 			original: { resource: change.originalUri },
 			modified: { resource: change.modifiedUri }
-		})));
+		}, MODAL_GROUP)));
 	}
 }
 
@@ -184,10 +184,9 @@ class OpenFileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
+		await Promise.all(resources.map(resource => editorService.openEditor({ resource }, MODAL_GROUP)));
 	}
 }
 
 registerAction2(OpenFileAction);
-
 

@@ -396,7 +396,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.enabled': {
 			type: 'boolean',
 			description: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
 			included: false,

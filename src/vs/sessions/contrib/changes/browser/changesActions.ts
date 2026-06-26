@@ -14,7 +14,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -57,13 +57,13 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// Open the multi-file diff editor in the editor part. The resource list is
+		// Open the multi-file diff editor in the modal editor. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
 		// a workbench contribution.
 		await editorService.openEditor({
 			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
 			label: localize('sessions.changes.title', 'Session Changes'),
-		});
+		}, MODAL_GROUP);
 	}
 }
 registerAction2(ViewAllChangesAction);

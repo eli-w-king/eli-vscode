@@ -1552,7 +1552,8 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 99
+					order: 99,
+					when: IsSessionsWindowContext.negate()
 				}
 			});
 		}

@@ -298,6 +298,17 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Run Agent-Aware Agents - OSS",
+			"type": "shell",
+			"command": "npm run transpile-client && TMPDIR=/tmp ./.agents/skills/launch/scripts/launch.sh --agents",
+			"inAgents": true,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always"
+			}
+		},
+		{
 			"label": "Run and Compile Code - OSS",
 			"dependsOn": [
 				"Transpile Client",

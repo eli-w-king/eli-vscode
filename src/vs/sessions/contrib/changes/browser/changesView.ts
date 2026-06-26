@@ -51,7 +51,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
@@ -1114,7 +1114,7 @@ export class ChangesViewPane extends ViewPane {
 		await this._openMultiFileDiffEditor(resource);
 	}
 
-	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
+	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], _sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
 		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
 		const currentIndex = items.indexOf(item);
 
@@ -1135,7 +1135,6 @@ export class ChangesViewPane extends ViewPane {
 			}
 		};
 
-		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 		const labels = getChangesEditorLabels(item.uri, this.labelService);
 
 		if (isDeletion && originalUri) {
@@ -1143,7 +1142,7 @@ export class ChangesViewPane extends ViewPane {
 				resource: originalUri,
 				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-			}, group);
+			}, MODAL_GROUP);
 			return;
 		}
 
@@ -1153,7 +1152,7 @@ export class ChangesViewPane extends ViewPane {
 				modified: { resource: modifiedFileUri },
 				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-			}, group);
+			}, MODAL_GROUP);
 			return;
 		}
 
@@ -1161,12 +1160,11 @@ export class ChangesViewPane extends ViewPane {
 			resource: modifiedFileUri,
 			...labels,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-		}, group);
+		}, MODAL_GROUP);
 	}
 
-	private async _openSingleFileDiffEditor(item: IChangesFileItem, sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
+	private async _openSingleFileDiffEditor(item: IChangesFileItem, _sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
 		const { uri, originalUri, isDeletion } = item;
-		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 		const labels = getChangesEditorLabels(uri, this.labelService);
 
 		// Always open a diff editor. Added files (no original) and deleted files
@@ -1178,7 +1176,7 @@ export class ChangesViewPane extends ViewPane {
 			modified: { resource: modifiedUri },
 			...labels,
 			options: { preserveFocus, pinned }
-		}, group);
+		}, MODAL_GROUP);
 	}
 
 	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
@@ -1215,7 +1213,7 @@ export class ChangesViewPane extends ViewPane {
 			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
 			label: localize('sessions.changes.title', 'Session Changes'),
 			options,
-		});
+		}, MODAL_GROUP);
 	}
 
 	override dispose(): void {
