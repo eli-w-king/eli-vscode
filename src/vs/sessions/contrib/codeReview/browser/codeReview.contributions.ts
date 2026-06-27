@@ -69,11 +69,7 @@ class RunSessionCodeReviewAction extends Action2 {
 			return;
 		}
 
-		if (session.capabilities.supportsMultipleChats) {
-			await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
-		} else {
-			chatWidgetService.getWidgetBySessionResource(session.resource)?.acceptInput(CODE_REVIEW_QUERY);
-		}
+		chatWidgetService.getWidgetBySessionResource(session.resource)?.acceptInput(CODE_REVIEW_QUERY);
 	}
 }
 

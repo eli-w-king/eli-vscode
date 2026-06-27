@@ -6,9 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
@@ -55,8 +53,6 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly sessionTypeId?: string;
 }
-
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Event fired when sessions change within a provider.
@@ -222,13 +218,6 @@ export interface ISessionsManagementService {
 	 * make it active/visible — the `ISessionsService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
-
-	/**
-	 * Create (or reuse an existing untitled) chat in the given session via its
-	 * provider so it can be shown as the new-chat-in-session view. Returns the
-	 * chat, or `undefined` when the provider could not be resolved.
-	 */
-	createNewChatInSession(session: ISession): Promise<IChat | undefined>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to

@@ -144,8 +144,13 @@ const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 /** Provider ID for the Copilot Chat Sessions provider. */
 export const COPILOT_PROVIDER_ID = 'default-copilot';
 
-/** Setting key controlling whether the Copilot provider supports multiple chats per session. */
-export const COPILOT_MULTI_CHAT_SETTING = 'sessions.github.copilot.multiChatSessions';
+/**
+ * Setting key that previously toggled multiple chats per session. The setting is
+ * no longer registered (the multi-chat UI has been removed), so it defaults to
+ * off and sessions stay single-chat. The key is kept internal only so tests can
+ * still exercise the provider's latent grouping code paths.
+ */
+const COPILOT_MULTI_CHAT_SETTING = 'sessions.github.copilot.multiChatSessions';
 
 /** Setting key controlling whether Claude agent sessions are available. */
 export const CLAUDE_CODE_ENABLED_SETTING = 'sessions.chat.claudeAgent.enabled';
@@ -1481,7 +1486,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	) {
 		super();
 
-		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
+		// Defaults to off: the setting is no longer registered, so production
+		// sessions stay single-chat. Tests may still set the key to exercise the
+		// provider's latent grouping code paths.
+		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? false;
 		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 		this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
 		this._hideExtensionHostCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;

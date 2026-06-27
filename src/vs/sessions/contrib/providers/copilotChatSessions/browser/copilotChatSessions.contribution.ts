@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { CopilotChatSessionsProvider, COPILOT_MULTI_CHAT_SETTING, CLAUDE_CODE_ENABLED_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, CLAUDE_CODE_ENABLED_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -16,12 +16,6 @@ import { localize } from '../../../../../nls.js';
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
-		[COPILOT_MULTI_CHAT_SETTING]: {
-			type: 'boolean',
-			default: true,
-			tags: ['preview'],
-			description: localize('sessions.github.copilot.multiChatSessions', "Whether to enable multiple chats within a single session in the Copilot Chat sessions provider."),
-		},
 		[CLAUDE_CODE_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: true,
