@@ -105,6 +105,8 @@ export class ChatStatusDashboard extends DomWidget {
 	// Status entries surfaced elsewhere (e.g. chat-input pill) and skipped here.
 	private static readonly HIDDEN_ENTRY_IDS = new Set<string>([
 		'copilot.otelStatus',
+		// Codebase Semantic Index — not surfaced in the agents-first experience.
+		'copilot.workspaceIndexStatus',
 	]);
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');

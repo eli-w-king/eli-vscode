@@ -68,7 +68,7 @@ import './media/settingsEditor2.css';
 import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
-import { getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
+import { AGENTS_WINDOW_COMMONLY_USED_SETTINGS, agentsWindowTocData, getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from './settingsSearchMenu.js';
 import { AbstractSettingRenderer, createTocTreeForExtensionSettings, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
@@ -859,6 +859,11 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target)));
+		// In the Agents window there is a single, implicit settings scope (user). Hide the
+		// User / Workspace / Agents-window target selector so settings aren't differentiated.
+		if (this.environmentService.isSessionsWindow) {
+			targetWidgetContainer.style.display = 'none';
+		}
 		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.DownArrow) {
@@ -1465,7 +1470,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		const filter = this.canShowAdvancedSettings() ? undefined : { exclude: { tags: [ADVANCED_SETTING_TAG] } };
 
-		const settingsResult = resolveSettingsTree(tocData, coreSettingsGroups, filter, this.logService);
+		const settingsLayout = this.environmentService.isSessionsWindow ? agentsWindowTocData : tocData;
+		const settingsResult = resolveSettingsTree(settingsLayout, coreSettingsGroups, filter, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
 
 		// Warn for settings not included in layout
@@ -1579,7 +1585,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
-		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
+		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, this.environmentService.isSessionsWindow ? AGENTS_WINDOW_COMMONLY_USED_SETTINGS : undefined));
 
 		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.

@@ -6,11 +6,12 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
+import './media/accountSettings.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,11 +20,12 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, append, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, append, addDisposableListener, EventType, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
@@ -36,7 +38,7 @@ import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../wo
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
@@ -49,11 +51,24 @@ const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
-const PERSONALIZE_ACTION_IDS: readonly string[] = [
-	'workbench.action.openSettings',
-];
+const PERSONALIZE_ACTION_IDS: readonly string[] = [];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
+
+// Configuration keys backing the inline settings shown in the account flyout. The Agents window
+// surfaces a deliberately small, curated set of controls here instead of the full settings editor.
+const SETTING_AGENT_SESSION_DEFAULTS = 'chat.agentSessions.defaultConfiguration';
+const SETTING_PERMISSIONS_DEFAULT = 'chat.permissions.default';
+const SETTING_MAX_REQUESTS = 'chat.agent.maxRequests';
+const SETTING_SIGNAL_RESPONSE = 'accessibility.signals.chatResponseReceived';
+const SETTING_SIGNAL_ACTION = 'accessibility.signals.chatUserActionRequired';
+
+const MAX_REQUESTS_MIN = 1;
+const MAX_REQUESTS_MAX = 1000;
+const MAX_REQUESTS_STEP = 5;
+const MAX_REQUESTS_FALLBACK = 25;
+
+type AppearanceMode = 'light' | 'dark' | 'system';
 
 // Register the shared VS Code update title bar entry into the Agents titlebar layout.
 // Placed as the first (leftmost) item of the leftmost right-cluster container so that, in
@@ -132,18 +147,6 @@ registerAction2(class extends Action2 {
 		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
 		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
 	}
-});
-
-// Settings (hidden on phone — no settings UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.openSettings',
-		title: localize('settings', "Settings"),
-		icon: Codicon.settingsGear,
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 1,
 });
 
 // Update actions
@@ -466,10 +469,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		for (const action of partitioned.personalize) {
 			headerActionBar.push(action, { icon: true, label: false });
 		}
-		headerActionBar.push(panelStore.add(this.createThemeToggleAction()), { icon: true, label: false });
-		if (partitioned.signOut) {
-			headerActionBar.push(partitioned.signOut, { icon: true, label: false });
-		}
 
 		// Other panel actions (sign-in, etc.) — only render if there's at least one non-separator action.
 		if (partitioned.other.some(a => !(a instanceof Separator))) {
@@ -508,22 +507,187 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			summary.textContent = this.lastState.ariaLabel;
 		}
 
+		// Inline settings — a small, curated set of premium controls that replace the full
+		// settings editor in the Agents window.
+		this.createSettingsSection(panel, panelStore);
+
+		// Sign out — rendered as a full-width action at the bottom of the experience rather
+		// than a small icon in the header.
+		if (partitioned.signOut) {
+			this.createSignOutRow(panel, panelStore, partitioned.signOut);
+		}
+
 		return panel;
 	}
 
-	private createThemeToggleAction(): Action {
-		const isDarkNow = isDark(this.themeService.getColorTheme().type);
-		return new Action(
-			'sessionsAccount.toggleColorMode',
-			isDarkNow ? localize('switchToLight', "Switch to Light Mode") : localize('switchToDark', "Switch to Dark Mode"),
-			ThemeIcon.asClassName(Codicon.colorMode),
-			true,
-			() => this.toggleColorMode(),
+	private createSignOutRow(panel: HTMLElement, store: DisposableStore, action: IAction): void {
+		const footer = append(panel, $('.sessions-account-settings-footer'));
+		const button = append(footer, $('button.sessions-account-settings-signout')) as HTMLButtonElement;
+		button.type = 'button';
+		append(button, $('span.codicon.codicon-sign-out'));
+		const label = append(button, $('span.sessions-account-settings-signout-label'));
+		label.textContent = action.label;
+		this.addActivateListener(store, button, () => {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+			action.run();
+		});
+	}
+
+	// --- Inline settings section --- //
+
+	private createSettingsSection(panel: HTMLElement, store: DisposableStore): void {
+		const section = append(panel, $('section.sessions-account-settings', {
+			'aria-label': localize('sessionsAccountSettingsSectionLabel', "Settings")
+		}));
+		const title = append(section, $('.sessions-account-settings-title'));
+		title.textContent = localize('sessionsAccountSettingsTitle', "Settings");
+		const list = append(section, $('.sessions-account-settings-list'));
+
+		this.createSegmentedRow(list, store,
+			localize('settingsAppearance', "Appearance"),
+			[
+				{ value: 'light', label: localize('appearanceLight', "Light") },
+				{ value: 'dark', label: localize('appearanceDark', "Dark") },
+				{ value: 'system', label: localize('appearanceSystem', "System") },
+			],
+			() => this.getAppearanceMode(),
+			value => this.applyAppearanceMode(value as AppearanceMode),
+		);
+
+		this.createStepperRow(list, store,
+			localize('settingsMaxRequests', "Max requests per turn"),
+			() => this.getMaxRequests(),
+			value => this.setMaxRequests(value),
+		);
+
+		// Toggles are grouped together at the bottom.
+		this.createToggleRow(list, store,
+			localize('settingsSound', "Sound cues"),
+			localize('settingsSoundDescription', "Play a sound on each response and when an action is needed."),
+			() => this.isSoundCuesOn(),
+			on => this.setSoundCues(on),
+		);
+
+		this.createToggleRow(list, store,
+			localize('settingsAutopilot', "Autopilot"),
+			localize('settingsAutopilotDescription', "New sessions start in autopilot and bypass approvals."),
+			() => this.isAutopilotDefault(),
+			on => this.setAutopilotDefault(on),
 		);
 	}
 
-	private async toggleColorMode(): Promise<void> {
-		const goingDark = !isDark(this.themeService.getColorTheme().type);
+	private createSettingRow(list: HTMLElement, label: string, description: string | undefined): HTMLElement {
+		const row = append(list, $('.sessions-account-settings-row'));
+		const text = append(row, $('.sessions-account-settings-row-text'));
+		const labelEl = append(text, $('.sessions-account-settings-row-label'));
+		labelEl.textContent = label;
+		if (description) {
+			const desc = append(text, $('.sessions-account-settings-row-description'));
+			desc.textContent = description;
+		}
+		return append(row, $('.sessions-account-settings-row-control'));
+	}
+
+	private addActivateListener(store: DisposableStore, element: HTMLElement, handler: () => void): void {
+		store.add(Gesture.addTarget(element));
+		const run = (e: Event) => {
+			e.preventDefault();
+			handler();
+		};
+		store.add(addDisposableListener(element, EventType.CLICK, run));
+		store.add(addDisposableListener(element, TouchEventType.Tap, run));
+	}
+
+	private createToggleRow(list: HTMLElement, store: DisposableStore, label: string, description: string | undefined, getValue: () => boolean, setValue: (on: boolean) => Promise<void>): void {
+		const control = this.createSettingRow(list, label, description);
+		const toggle = append(control, $('button.sessions-account-settings-switch')) as HTMLButtonElement;
+		toggle.type = 'button';
+		toggle.setAttribute('role', 'switch');
+		toggle.setAttribute('aria-label', label);
+		append(toggle, $('.sessions-account-settings-switch-thumb'));
+		const update = (on: boolean) => {
+			toggle.classList.toggle('on', on);
+			toggle.setAttribute('aria-checked', String(on));
+		};
+		update(getValue());
+		this.addActivateListener(store, toggle, () => {
+			const next = toggle.getAttribute('aria-checked') !== 'true';
+			update(next);
+			setValue(next);
+		});
+	}
+
+	private createSegmentedRow(list: HTMLElement, store: DisposableStore, label: string, options: { value: string; label: string }[], getValue: () => string, setValue: (value: string) => Promise<void>): void {
+		const control = this.createSettingRow(list, label, undefined);
+		const group = append(control, $('.sessions-account-settings-segmented'));
+		group.setAttribute('role', 'radiogroup');
+		group.setAttribute('aria-label', label);
+		const buttons: { value: string; element: HTMLButtonElement }[] = [];
+		const refresh = (current: string) => {
+			for (const button of buttons) {
+				const active = button.value === current;
+				button.element.classList.toggle('active', active);
+				button.element.setAttribute('aria-checked', String(active));
+				button.element.tabIndex = active ? 0 : -1;
+			}
+		};
+		for (const option of options) {
+			const button = append(group, $('button.sessions-account-settings-segment')) as HTMLButtonElement;
+			button.type = 'button';
+			button.setAttribute('role', 'radio');
+			button.textContent = option.label;
+			buttons.push({ value: option.value, element: button });
+			this.addActivateListener(store, button, () => {
+				refresh(option.value);
+				setValue(option.value);
+			});
+		}
+		refresh(getValue());
+	}
+
+	private createStepperRow(list: HTMLElement, store: DisposableStore, label: string, getValue: () => number, setValue: (value: number) => Promise<void>): void {
+		const control = this.createSettingRow(list, label, undefined);
+		const stepper = append(control, $('.sessions-account-settings-stepper'));
+		const decrement = append(stepper, $('button.sessions-account-settings-stepper-button.codicon.codicon-remove')) as HTMLButtonElement;
+		decrement.type = 'button';
+		decrement.setAttribute('aria-label', localize('settingsMaxRequestsDecrease', "Decrease max requests"));
+		const valueEl = append(stepper, $('.sessions-account-settings-stepper-value'));
+		const increment = append(stepper, $('button.sessions-account-settings-stepper-button.codicon.codicon-add')) as HTMLButtonElement;
+		increment.type = 'button';
+		increment.setAttribute('aria-label', localize('settingsMaxRequestsIncrease', "Increase max requests"));
+		let value = getValue();
+		const render = () => {
+			valueEl.textContent = String(value);
+			decrement.classList.toggle('disabled', value <= MAX_REQUESTS_MIN);
+			increment.classList.toggle('disabled', value >= MAX_REQUESTS_MAX);
+		};
+		const apply = (next: number) => {
+			value = Math.max(MAX_REQUESTS_MIN, Math.min(MAX_REQUESTS_MAX, next));
+			render();
+			setValue(value);
+		};
+		render();
+		this.addActivateListener(store, decrement, () => apply(value - MAX_REQUESTS_STEP));
+		this.addActivateListener(store, increment, () => apply(value + MAX_REQUESTS_STEP));
+	}
+
+	private getAppearanceMode(): AppearanceMode {
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			return 'system';
+		}
+		return isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light';
+	}
+
+	private async applyAppearanceMode(mode: AppearanceMode): Promise<void> {
+		if (mode === 'system') {
+			if (!this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+				await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
+			}
+			return;
+		}
+
+		const goingDark = mode === 'dark';
 		const preferredSettingId = goingDark ? ThemeSettings.PREFERRED_DARK_THEME : ThemeSettings.PREFERRED_LIGHT_THEME;
 		const preferredThemeSettingsId = this.configurationService.getValue<string>(preferredSettingId);
 		const themes = await this.themeService.getColorThemes();
@@ -533,19 +697,69 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
-		// A manual toggle takes control from the OS-follow default, so disable
+		// A manual choice takes control from the OS-follow default, so disable
 		// auto-detection before applying the explicit theme.
 		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, false, ConfigurationTarget.USER);
 		}
 		// Drive the native macOS vibrancy material from the chosen app theme
-		// rather than the OS appearance. With `auto`, the main process maps the
-		// stored base theme to the window's native theme source, so a light
-		// theme over a dark OS no longer keeps a dark frosted backdrop.
+		// rather than the OS appearance.
 		if (this.configurationService.getValue(ThemeSettings.SYSTEM_COLOR_THEME) !== 'auto') {
 			await this.configurationService.updateValue(ThemeSettings.SYSTEM_COLOR_THEME, 'auto', ConfigurationTarget.USER);
 		}
 		await this.themeService.setColorTheme(target.id, 'auto');
+	}
+
+	private isAutopilotDefault(): boolean {
+		// New sessions read their starting permission level from two places depending on the
+		// session type: the in-window chat input uses `chat.permissions.default`, while agent-host
+		// sessions (Copilot CLI, Claude, …) use `chat.agentSessions.defaultConfiguration`. Treat
+		// autopilot as on if either is set to autopilot.
+		if (this.configurationService.getValue<string>(SETTING_PERMISSIONS_DEFAULT) === 'autopilot') {
+			return true;
+		}
+		const agentDefaults = this.configurationService.getValue<{ mode?: string }>(SETTING_AGENT_SESSION_DEFAULTS);
+		return agentDefaults?.mode === 'autopilot';
+	}
+
+	private async setAutopilotDefault(on: boolean): Promise<void> {
+		// Drive both the local chat default and the agent-host default so new sessions start in
+		// autopilot regardless of session type.
+		await Promise.all([
+			this.configurationService.updateValue(
+				SETTING_PERMISSIONS_DEFAULT,
+				on ? 'autopilot' : 'default',
+				ConfigurationTarget.USER,
+			),
+			this.configurationService.updateValue(
+				SETTING_AGENT_SESSION_DEFAULTS,
+				on ? { mode: 'autopilot', approvals: 'autoApprove' } : {},
+				ConfigurationTarget.USER,
+			),
+		]);
+	}
+
+	private getMaxRequests(): number {
+		const value = this.configurationService.getValue<number>(SETTING_MAX_REQUESTS);
+		return typeof value === 'number' && value > 0 ? value : MAX_REQUESTS_FALLBACK;
+	}
+
+	private async setMaxRequests(value: number): Promise<void> {
+		await this.configurationService.updateValue(SETTING_MAX_REQUESTS, value, ConfigurationTarget.USER);
+	}
+
+	private isSoundCuesOn(): boolean {
+		const value = this.configurationService.getValue<{ sound?: string }>(SETTING_SIGNAL_RESPONSE);
+		return !!value && value.sound !== 'off';
+	}
+
+	private async setSoundCues(on: boolean): Promise<void> {
+		const sound = on ? 'on' : 'off';
+		for (const key of [SETTING_SIGNAL_RESPONSE, SETTING_SIGNAL_ACTION]) {
+			const current = this.configurationService.getValue<Record<string, unknown>>(key);
+			const next = current && typeof current === 'object' ? { ...current, sound } : { sound };
+			await this.configurationService.updateValue(key, next, ConfigurationTarget.USER);
+		}
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {

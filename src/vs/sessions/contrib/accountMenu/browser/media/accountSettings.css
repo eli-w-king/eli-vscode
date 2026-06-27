@@ -1,0 +1,231 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Inline settings shown in the account flyout — a small, premium set of controls that
+ * replace the full settings editor in the Agents window. */
+
+.agent-sessions-workbench .sessions-account-settings {
+	display: flex;
+	flex-direction: column;
+	padding: 10px 12px 12px;
+	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
+}
+
+.agent-sessions-workbench .sessions-account-settings-title {
+	font-size: var(--vscode-bodyFontSize);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin: 2px 2px 8px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.agent-sessions-workbench .sessions-account-settings-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 34px;
+	padding: 6px 2px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-row + .sessions-account-settings-row {
+	border-top: 1px solid color-mix(in srgb, var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground)) 50%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .sessions-account-settings-row-label {
+	font-size: var(--vscode-bodyFontSize);
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-settings-row-description {
+	font-size: var(--vscode-bodyFontSize-xSmall);
+	line-height: 1.35;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-settings-row-control {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+}
+
+/* ---- Switch ---- */
+
+.agent-sessions-workbench .sessions-account-settings-switch {
+	position: relative;
+	width: 34px;
+	height: 20px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-inputOption-activeBackground, var(--vscode-checkbox-border, rgba(128, 128, 128, 0.4)));
+	background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: background 120ms ease;
+}
+
+.agent-sessions-workbench .sessions-account-settings-switch.on {
+	background: var(--vscode-button-background, var(--vscode-focusBorder));
+}
+
+.agent-sessions-workbench .sessions-account-settings-switch:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-switch-thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--vscode-button-foreground, #ffffff);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+	transition: transform 120ms ease;
+}
+
+.agent-sessions-workbench .sessions-account-settings-switch.on .sessions-account-settings-switch-thumb {
+	transform: translateX(14px);
+}
+
+/* ---- Segmented control ---- */
+
+.agent-sessions-workbench .sessions-account-settings-segmented {
+	display: inline-flex;
+	padding: 2px;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-segment {
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+	padding: 4px 10px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: background 120ms ease, color 120ms ease;
+}
+
+.agent-sessions-workbench .sessions-account-settings-segment:hover:not(.active) {
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-settings-segment.active {
+	background: var(--vscode-button-background, var(--vscode-editor-background));
+	color: var(--vscode-button-foreground, var(--vscode-foreground));
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.agent-sessions-workbench .sessions-account-settings-segment:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* ---- Stepper ---- */
+
+.agent-sessions-workbench .sessions-account-settings-stepper {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-stepper-button.codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-codiconFontSize-compact);
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: background 120ms ease;
+}
+
+.agent-sessions-workbench .sessions-account-settings-stepper-button.codicon:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-stepper-button.codicon:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-stepper-button.disabled {
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .sessions-account-settings-stepper-value {
+	min-width: 28px;
+	text-align: center;
+	font-size: var(--vscode-bodyFontSize);
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-foreground);
+}
+
+/* ---- Sign out ---- */
+
+.agent-sessions-workbench .sessions-account-settings-footer {
+	display: flex;
+	padding: 8px 12px 12px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-signout {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	width: 100%;
+	min-height: 30px;
+	padding: 0 12px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-bodyFontSize-small);
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.agent-sessions-workbench .sessions-account-settings-signout:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 26%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-signout:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.agent-sessions-workbench .sessions-account-settings-signout .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}

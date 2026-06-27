@@ -485,6 +485,22 @@ async function copyFile(srcPath: string, destPath: string): Promise<void> {
 }
 
 /**
+ * Copy `codicon.ttf` from the `@vscode/codicons` package into the source tree so it gets picked
+ * up by `copyAllNonTsFiles`. The font is git-ignored and normally placed here by the gulp
+ * `copy-codicons` task / postinstall; the transpile path doesn't run those, so without this every
+ * codicon would render as a missing-glyph box.
+ */
+async function ensureCodicons(): Promise<void> {
+	const codiconSource = path.join(REPO_ROOT, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
+	const codiconDest = path.join(REPO_ROOT, SRC_DIR, 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+	try {
+		await fs.promises.copyFile(codiconSource, codiconDest);
+	} catch (err) {
+		console.warn(`[codicons] Could not copy codicon.ttf (run 'npm install' if icons are missing): ${err}`);
+	}
+}
+
+/**
  * Standalone TypeScript files that need to be compiled separately (not bundled).
  * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
  * Only needed for desktop target.
@@ -1101,6 +1117,7 @@ async function watch(): Promise<void> {
 	// Initial full build
 	const t1 = Date.now();
 	try {
+		await ensureCodicons();
 		await transpile(outDir, false);
 		await copyAllNonTsFiles(outDir, false);
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
@@ -1238,6 +1255,7 @@ async function main(): Promise<void> {
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();
+					await ensureCodicons();
 					await transpile(outDir, options.excludeTests);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
