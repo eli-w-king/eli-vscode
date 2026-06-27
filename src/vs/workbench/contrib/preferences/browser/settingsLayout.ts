@@ -43,7 +43,17 @@ const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(settingGroups: ISettingsGroup[]): ITOCEntry<ISetting> {
+// A deliberately small "Commonly Used" list for the Agents window. The Agents window is an
+// agents-first control plane (no text editor, no browser, Mac-only, light/dark themes), so the
+// IDE-centric defaults above (editor font/format/tab size, etc.) are not relevant here.
+export const AGENTS_WINDOW_COMMONLY_USED_SETTINGS: readonly string[] = [
+	'workbench.colorTheme',
+	'chat.agent.maxRequests',
+	'update.mode',
+	'telemetry.telemetryLevel'
+];
+
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsedSettings: readonly string[] = COMMONLY_USED_SETTINGS): ITOCEntry<ISetting> {
 	const allSettings = new Map<string, ISetting>();
 	for (const group of settingGroups) {
 		for (const section of group.sections) {
@@ -53,7 +63,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[]): ITOCEntry<
 		}
 	}
 	const settings: ISetting[] = [];
-	for (const id of COMMONLY_USED_SETTINGS) {
+	for (const id of commonlyUsedSettings) {
 		const setting = allSettings.get(id);
 		if (setting) {
 			settings.push(setting);
@@ -438,6 +448,65 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('workspace', "Workspace"),
 					settings: ['security.workspace.*']
 				}
+			]
+		}
+	]
+};
+
+function findTocChild(parentId: string, childId: string): ITOCEntry<string> {
+	const parent = tocData.children!.find(child => child.id === parentId);
+	const child = parent?.children!.find(c => c.id === childId);
+	if (!child) {
+		throw new Error(`Unknown settings TOC node: ${parentId} > ${childId}`);
+	}
+	return child;
+}
+
+function findTocNode(id: string): ITOCEntry<string> {
+	const node = tocData.children!.find(child => child.id === id);
+	if (!node) {
+		throw new Error(`Unknown settings TOC node: ${id}`);
+	}
+	return node;
+}
+
+/**
+ * A curated, drastically trimmed Table of Contents for the Agents window settings UI.
+ *
+ * The Agents window is an agents-first control plane — there is no text editor, no embedded
+ * browser, no IDE feature surfaces (debug, testing, source control, notebooks, ...), it is
+ * Mac-only, and only ships light/dark themes. Reusing the full IDE settings tree here is
+ * overwhelming, so we keep only the categories that make sense for orchestrating agents.
+ *
+ * Settings not referenced by any node below are simply not rendered (they only produce a debug
+ * warning in {@link resolveSettingsTree}), so this list is the single lever for what shows up.
+ *
+ * Nodes are reused from {@link tocData} where possible so the underlying setting globs and
+ * localized labels stay in one place.
+ */
+export const agentsWindowTocData: ITOCEntry<string> = {
+	id: 'root',
+	label: 'root',
+	children: [
+		findTocChild('workbench', 'workbench/appearance'),
+		findTocNode('chat'),
+		{
+			id: 'features',
+			label: findTocNode('features').label,
+			children: [
+				findTocChild('features', 'features/terminal'),
+				findTocChild('features', 'features/accessibility'),
+				findTocChild('features', 'features/accessibilitySignals')
+			]
+		},
+		{
+			id: 'application',
+			label: findTocNode('application').label,
+			children: [
+				findTocChild('application', 'application/update'),
+				findTocChild('application', 'application/keyboard'),
+				findTocChild('application', 'application/telemetry'),
+				findTocChild('application', 'application/settingsSync')
 			]
 		}
 	]

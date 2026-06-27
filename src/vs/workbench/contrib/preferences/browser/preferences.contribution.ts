@@ -29,7 +29,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../.
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
-import { RemoteNameContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { RemoteNameContext, ResourceContextKey, WorkbenchStateContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -232,9 +232,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						...nls.localize2('settings', "Settings"),
 						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"),
 					},
+					// The Agents window replaces the full settings editor with an inline,
+					// curated settings surface, so the command and its keybinding are disabled there.
+					precondition: IsSessionsWindowContext.negate(),
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: null,
+						when: IsSessionsWindowContext.negate(),
 						primary: KeyMod.CtrlCmd | KeyCode.Comma,
 					},
 					menu: [{
@@ -1439,7 +1442,9 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			registerOpenUserSettingsEditorFromJsonAction();
 		}));
 
-		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_JSON_EDITOR.toNegated(), CONTEXT_SETTINGS_EDITOR);
+		// The Agents window is a UI-only settings surface (no JSON settings editing), so the
+		// "Open Settings (JSON)" affordance is hidden there.
+		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_JSON_EDITOR.toNegated(), CONTEXT_SETTINGS_EDITOR, IsSessionsWindowContext.negate());
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
