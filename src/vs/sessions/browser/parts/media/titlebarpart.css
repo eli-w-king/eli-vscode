@@ -52,6 +52,14 @@
 	margin-left: 4px;
 }
 
+/* Keep the right layout actions (e.g. the always-on-top pin shown in popped-out
+	editor windows) from sitting flush against the window edge. Only applies when
+	the layout container actually has actions, which in practice is the auxiliary
+	(popped-out) window — the main agents window leaves this container empty. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container:not(.has-no-actions) {
+	padding-right: 8px;
+}
+
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
