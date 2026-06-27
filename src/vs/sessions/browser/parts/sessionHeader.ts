@@ -55,11 +55,9 @@ export interface ISessionHeaderLowerRegionDelegate {
 /**
  * The session header shown at the top of a session view. It surfaces the session
  * identity (status icon + title), a meta row (workspace · diff stats),
- * and the session toolbars (e.g. Run, Open in VS Code, New Chat).
+ * and the session toolbars (e.g. Run, Open in VS Code).
  *
- * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
- * strip) so the two surfaces evolve independently. The hosting view tells the
- * header which session is relevant via {@link setSession}.
+ * The hosting view tells the header which session is relevant via {@link setSession}.
  */
 export class SessionHeader extends Disposable {
 

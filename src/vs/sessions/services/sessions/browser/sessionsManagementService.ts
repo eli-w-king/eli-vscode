@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, ISessionWorkspace, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
@@ -316,17 +316,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
 		}
 		return session;
-	}
-
-	async createNewChatInSession(session: ISession): Promise<IChat | undefined> {
-		const provider = this._getProvider(session);
-		if (!provider) {
-			this.logService.warn(`[SessionsManagement] createNewChatInSession: provider '${session.providerId}' not found`);
-			return undefined;
-		}
-		// Reuse an existing untitled chat if one exists, otherwise create a new one.
-		const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
-		return existingUntitled ?? await provider.createNewChat(session.sessionId);
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {

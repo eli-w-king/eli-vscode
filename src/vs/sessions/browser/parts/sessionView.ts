@@ -16,11 +16,10 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory, ISessionLowerRegionView } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
-import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar, SessionLowerRegionMode } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -43,8 +42,8 @@ export interface ISessionViewOptions extends IChatViewOptions {
  * this host so it no longer needs to remove/add grid views when the active
  * chat view kind changes.
  *
- * Also hosts the {@link SessionHeader} and {@link ChatCompositeBar} so that they
- * live alongside the chat view they relate to.
+ * Also hosts the {@link SessionHeader} so that it
+ * lives alongside the chat view it relates to.
  */
 export class SessionView extends Disposable implements ISerializableView {
 
@@ -73,7 +72,6 @@ export class SessionView extends Disposable implements ISerializableView {
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	private readonly _header: SessionHeader;
-	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
@@ -113,7 +111,6 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
-	private readonly _sessionSupportsMultipleChatsKey: IContextKey<boolean>;
 	private readonly _sessionIsReadKey: IContextKey<boolean>;
 	private readonly _sessionIsArchivedKey: IContextKey<boolean>;
 	private readonly _chatSessionProviderIdKey: IContextKey<string>;
@@ -138,7 +135,6 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsCreatedKey = SessionIsCreatedContext.bindTo(scopedContextKeyService);
 		this._sessionIsStickyKey = SessionIsStickyContext.bindTo(scopedContextKeyService);
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
-		this._sessionSupportsMultipleChatsKey = SessionSupportsMultipleChatsContext.bindTo(scopedContextKeyService);
 		this._sessionIsReadKey = SessionIsReadContext.bindTo(scopedContextKeyService);
 		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
 		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
@@ -158,20 +154,17 @@ export class SessionView extends Disposable implements ISerializableView {
 		// reference it without duplicating the constant.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
 
-		// The header and composite bar (tabs) are hosted in a centered, width-capped
-		// container so they align with the centered chat content. The chat content
-		// itself lives in a full-width container so its transcript list spans the
-		// whole session view and its scrollbar stays pinned to the right edge; the
-		// chat rows and input self-center at the same max-width via CSS.
+		// The header is hosted in a centered, width-capped container so it aligns
+		// with the centered chat content. The chat content itself lives in a
+		// full-width container so its transcript list spans the whole session view
+		// and its scrollbar stays pinned to the right edge; the chat rows and input
+		// self-center at the same max-width via CSS.
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
 		this._header.setLowerRegionDelegate(this);
 		this._centeredContentContainer.appendChild(this._header.element);
-
-		this._compositeBar = this._register(scopedInstantiationService.createInstance(ChatCompositeBar));
-		this._centeredContentContainer.appendChild(this._compositeBar.element);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
@@ -181,11 +174,9 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._applyActiveSessionStyles();
 
-		// Re-layout children when the header or composite bar changes visibility/height
+		// Re-layout children when the header changes visibility/height
 		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._header.onDidChangeHeight(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
@@ -215,22 +206,20 @@ export class SessionView extends Disposable implements ISerializableView {
 			let desiredKind: ChatViewKind;
 			if (!isCreated) {
 				desiredKind = 'newSession';
-			} else if (status === SessionStatus.Untitled) {
-				desiredKind = 'newChatInSession';
 			} else {
 				desiredKind = 'chat';
 			}
 
 			// Created-chat columns render transcript-only while the shared input
-			// is active (multiple sessions visible); new-session / new-chat slots
-			// always keep their own inline input.
+			// is active (multiple sessions visible); the new-session slot always
+			// keeps its own inline input.
 			const wantTranscriptOnly = desiredKind === 'chat' && sharedInputMode;
 
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind || (view.kind === 'chat' && this._currentChatTranscriptOnly !== wantTranscriptOnly)) {
 				view = desiredKind === 'chat'
 					? this.chatViewFactory.createChatView(wantTranscriptOnly)
-					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
+					: this.chatViewFactory.createNewChatView(options);
 				this._currentChatTranscriptOnly = desiredKind === 'chat' ? wantTranscriptOnly : undefined;
 				this._currentView.value = view;
 				view.setActive(this._isActive);
@@ -251,7 +240,6 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._updateWorking();
 
 			this._header.setSession(session);
-			this._compositeBar.setSession(session);
 			this._floatingToolbar.setSession(session);
 			this._layoutChildren();
 		}));
@@ -329,7 +317,6 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (!session) {
 			this._sessionIsCreatedKey.set(false);
 			this._sessionIsStickyKey.set(false);
-			this._sessionSupportsMultipleChatsKey.set(false);
 			this._sessionIsReadKey.set(true);
 			this._sessionIsArchivedKey.set(false);
 			this._chatSessionProviderIdKey.set('');
@@ -368,7 +355,6 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._sessionHasChangesKey.set(insertions > 0 || deletions > 0);
 		}));
 
-		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
 		this._chatSessionProviderIdKey.set(session.providerId);
 		this._chatSessionTypeKey.set(session.sessionType);
 
@@ -395,18 +381,17 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		const { width, height, top, left } = this._lastLayout;
 
-		// Apply the centered band's width first so the header and tabs wrap to
-		// their final layout before we measure their combined height. Measuring
-		// before the width is applied could read a stale (pre-cap) height and
-		// cause a transient overlap until a later layout pass corrects it.
+		// Apply the centered band's width first so the header wraps to its final
+		// layout before we measure its height. Measuring before the width is
+		// applied could read a stale (pre-cap) height and cause a transient
+		// overlap until a later layout pass corrects it.
 		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
 		this._centeredContentContainer.style.width = `${centeredWidth}px`;
 
 		const headerHeight = this._header.visible ? this._header.height : 0;
-		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
-		const barHeight = headerHeight + tabsHeight;
+		const barHeight = headerHeight;
 
-		// Cap the band's height to the header + tabs (it is horizontally centered
+		// Cap the band's height to the header (it is horizontally centered
 		// via CSS `margin: 0 auto`) so the full-width chat content sits below it.
 		size(this._centeredContentContainer, centeredWidth, barHeight);
 

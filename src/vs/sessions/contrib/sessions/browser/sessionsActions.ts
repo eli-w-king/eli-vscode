@@ -313,26 +313,6 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
-registerAction2(class AddChatToSessionBarAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.addChat',
-			title: localize2('chatCompositeBar.addChat', "New Chat"),
-			icon: Codicon.add,
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsService.openNewChatInSession(session);
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
-	}
-});
-
 registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
 		super({

@@ -23,7 +23,6 @@ import { NewChatInputWidget } from '../../browser/newChatInput.js';
 // provides the `--vscode-agentsChatInput-*` theme variables and the
 // `.agent-sessions-workbench` scope.
 import '../../browser/media/chatInput.css';
-import '../../browser/media/newChatInSession.css';
 import '../../browser/media/chatWidget.css';
 import '../../../../browser/media/style.css';
 
@@ -34,8 +33,8 @@ interface NewChatInputFixtureOptions {
 
 /**
  * Renders the real {@link NewChatInputWidget} inside the production DOM ancestry
- * (`.new-chat-in-session > .new-chat-widget-container.revealed > .new-chat-widget-content`)
- * so the `chatInput.css` / `newChatInSession.css` rules apply. The sessions-specific
+ * (`.sessions-chat-widget > .new-chat-widget-container.revealed > .new-chat-widget-content`)
+ * so the `chatInput.css` rules apply. The sessions-specific
  * services its pickers depend on are mocked here.
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
@@ -77,10 +76,9 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	container.style.height = '160px';
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 
-	// `.new-chat-in-session` scopes the layout overrides and
 	// `.new-chat-widget-container.revealed` flips `.new-chat-input-container`
 	// from `display: none` to visible.
-	const root = dom.append(container, dom.$('.new-chat-in-session.sessions-chat-widget'));
+	const root = dom.append(container, dom.$('.sessions-chat-widget'));
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
 	const content = dom.append(widgetContainer, dom.$('.new-chat-widget-content'));
 

@@ -67,7 +67,6 @@ On phone-sized viewports (`< 640px` width):
 - **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and a contextual right slot that swaps between the new session (+) button (when in a chat) and the account indicator 👤 (on the welcome / new session screen).
 - **Sidebar** is hidden by default and opens as an **85% width drawer overlay** with a backdrop when the hamburger is tapped. CSS makes its `split-view-view` absolutely positioned with `z-index: 250`. The workbench manually calls `sidebarPart.layout()` with drawer dimensions after opening. Closing the drawer clears the navigation stack.
 - **Titlebar** is hidden in the grid (`visible: false`) and via CSS — replaced by MobileTitlebarPart.
-- **SessionCompositeBar** (chat tabs) is hidden via CSS.
 - The grid uses `display: flex; flex-direction: column` and all `split-view-view:has(> .part)` containers are positioned absolutely at `100% width/height`.
 
 ### Viewport Classification
@@ -95,7 +94,6 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | **Sessions Part** (chat views) | Same Part (`MobileSessionsPart`), edge-to-edge, no card chrome, single visible session | Default view (always visible) |
 | **AuxiliaryBar** (files, changes) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **Panel** (terminal, output) | Gated — not shown on mobile | Planned: mobile-specific view |
-| **SessionCompositeBar** (chat tabs) | Hidden on phone | — |
 | **New Session** (sidebar button) | + button in MobileTitlebarPart | Visible in top bar when in a chat |
 | **Account indicator** (titlebar) | Account button in MobileTitlebarPart | Visible in top bar on welcome/new session |
 
@@ -115,7 +113,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | File | Purpose |
 |------|---------|
 | `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
-| `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
+| `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |
 | `mobileChipLaneScroll.ts` | Pointer-event-based horizontal scroll helper for the config chip row. Overcomes monaco's `Gesture.addTarget` eating `touchmove` by translating `pointermove` into `scrollLeft` updates. Phone-gated via `isPhoneLayout()` — no-ops on desktop. |

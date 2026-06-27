@@ -16,7 +16,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent, ActiveSessionSupportsMultiChatContext } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -148,13 +148,6 @@ export interface ISessionsService {
 	openNewSession(options?: IOpenNewSessionOptions): ISession | undefined;
 
 	/**
-	 * Switch to the new-chat-in-session view.
-	 * Adds a new chat to the session via the provider, makes it the active chat,
-	 * and shows a rich input for composing a message.
-	 */
-	openNewChatInSession(session: ISession): Promise<void>;
-
-	/**
 	 * Discard the pending new session and clear the active session, returning
 	 * to the empty new-session placeholder.
 	 */
@@ -226,7 +219,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _activeSessionType: IContextKey<string>;
 	private readonly _activeSessionWorkspaceIsVirtual: IContextKey<boolean>;
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
-	private readonly _supportsMultiChat: IContextKey<boolean>;
 
 	/** Cancelled on every navigation action so in-flight async opens bail out. */
 	private readonly _openSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -291,7 +283,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(this.contextKeyService);
 		this._activeSessionWorkspaceIsVirtual = ActiveSessionWorkspaceIsVirtualContext.bindTo(this.contextKeyService);
 		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(this.contextKeyService);
-		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(this.contextKeyService);
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -399,7 +390,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
-		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 	}
 
 	private _activeSessionContextKeyListeners(activeSession: IActiveSession): IDisposable {
@@ -667,20 +657,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const newSession = this.sessionsManagementService.newSession.get();
 		this._activate(newSession ?? undefined);
 		return newSession ?? undefined;
-	}
-
-	async openNewChatInSession(session: ISession): Promise<void> {
-		this._cancelRestore();
-		this._startOpenSession();
-		const chat = await this.sessionsManagementService.createNewChatInSession(session);
-		if (!chat) {
-			return;
-		}
-
-		this._activate(session);
-
-		// Set the chat as the active chat
-		this._visibility.setActiveChat(session, chat);
 	}
 
 	setActive(session: IActiveSession | undefined): void {

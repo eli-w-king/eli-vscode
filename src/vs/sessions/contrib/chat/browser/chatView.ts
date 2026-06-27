@@ -24,7 +24,6 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { InCardChangesView } from '../../changes/browser/inCardChangesView.js';
 import { InCardFilesView } from '../../files/browser/inCardFilesView.js';
 import { NewChatWidget } from './newChatWidget.js';
-import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SharedChatInputView } from './sharedChatInputView.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
@@ -39,22 +38,18 @@ export class NewChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.newSession';
 
-	override readonly kind: ChatViewKind;
+	override readonly kind: ChatViewKind = 'newSession';
 
-	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
+	private readonly _widget: NewChatWidget;
 
 	constructor(
-		isNewChatInSession: boolean,
 		options: IChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
-		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		this._widget = this._register(isNewChatInSession
-			? instantiationService.createInstance(NewChatInSessionWidget, options)
-			: instantiationService.createInstance(NewChatWidget, options));
+		this._widget = this._register(instantiationService.createInstance(NewChatWidget, options));
 		this._widget.render(this.element);
 	}
 
@@ -71,21 +66,15 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	override selectWorkspace(folderUri: URI, providerId?: string): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectWorkspace(folderUri, providerId);
-		}
+		this._widget.selectWorkspace(folderUri, providerId);
 	}
 
 	override prefillInput(text: string): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.prefillInput(text);
-		}
+		this._widget.prefillInput(text);
 	}
 
 	override sendQuery(text: string): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.sendQuery(text);
-		}
+		this._widget.sendQuery(text);
 	}
 
 	override attach(uris: URI[]): void {
@@ -315,8 +304,8 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+	createNewChatView(options: IChatViewOptions): AbstractChatView {
+		return this.instantiationService.createInstance(NewChatView, options);
 	}
 
 	createChatView(transcriptOnly?: boolean): AbstractChatView {

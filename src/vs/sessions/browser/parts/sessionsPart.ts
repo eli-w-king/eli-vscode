@@ -288,8 +288,8 @@ export class SessionsPart extends Part {
 		// The docked input is the composer for every created-chat column, so those
 		// columns always render transcript-only (`sharedInputMode: true`). The mode
 		// is passed through openSession (not a separate observable setter) so
-		// toggling it cannot re-enter this reconcile synchronously. New-session and
-		// new-chat-in-session slots keep their own inline composer regardless.
+		// toggling it cannot re-enter this reconcile synchronously. New-session
+		// slots keep their own inline composer regardless.
 		const multiSession = visible.length > 1;
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
