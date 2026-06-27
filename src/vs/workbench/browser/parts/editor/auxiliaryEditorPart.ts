@@ -34,6 +34,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { GroupIdentifier } from '../../../common/editor.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -344,6 +345,12 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
+	/**
+	 * Permanent clean-chrome override for popped-out editor windows in the
+	 * Agents (sessions) window. See {@link applySessionsWindowChrome}.
+	 */
+	private readonly sessionsChromeDisposable = this._register(new MutableDisposable());
+
 	private isCompact = false;
 
 	constructor(
@@ -357,10 +364,34 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+
+		this.applySessionsWindowChrome();
+	}
+
+	/**
+	 * In the Agents (sessions) window, a popped-out editor window is a
+	 * control-plane surface, not a full editor. Strip the editor-tabs bar and
+	 * editor action toolbar so the window reduces to its content plus the
+	 * native window titlebar (filename + window controls + keep-on-top pin) in
+	 * a single row — matching the in-window modal editor's clean chrome
+	 * (see `ModalEditorPart.enforceModalPartOptions`). Applied permanently and
+	 * independent of compact mode (which only kicks in on explicit toggle).
+	 */
+	private applySessionsWindowChrome(): void {
+		if (!this.environmentService.isSessionsWindow) {
+			return;
+		}
+
+		this.sessionsChromeDisposable.value = this.enforcePartOptions({
+			showTabs: 'none',
+			editorActionsLocation: 'hidden',
+			closeEmptyGroups: true
+		});
 	}
 
 	protected override handleContextKeys(): void {
