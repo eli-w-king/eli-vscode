@@ -31,7 +31,7 @@ import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -74,7 +74,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.screenFull,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext),
+				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext, IsSessionsWindowContext.toNegated()),
 				order: 0,
 				group: 'navigation'
 			}
@@ -95,7 +95,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.screenNormal,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext),
+				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext, IsSessionsWindowContext.toNegated()),
 				order: 0,
 				group: 'navigation'
 			}
