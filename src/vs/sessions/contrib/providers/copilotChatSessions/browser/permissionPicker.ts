@@ -98,9 +98,10 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 	switch (level) {
 		case ChatPermissionLevel.AutoApprove:
 			return {
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
-				icon: Codicon.warning,
+				label: localize('permissions.askQuestions', "Ask Questions"),
+				detail: localize('permissions.askQuestions.subtext', "Auto-approves tools; still asks you questions"),
+				icon: Codicon.question,
+				hover: localize('permissions.askQuestions.description', "Auto-approve all tool calls, but keep working interactively so Copilot can pause to ask you questions."),
 			};
 		case ChatPermissionLevel.Autopilot:
 			return {
@@ -177,14 +178,14 @@ export class PermissionPicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._onTriggerActivated();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this.showPicker();
+				this._onTriggerActivated();
 			}
 		}));
 
@@ -216,6 +217,15 @@ export class PermissionPicker extends Disposable {
 		}
 
 		return slot;
+	}
+
+	/**
+	 * Invoked when the trigger chip is clicked or activated by keyboard.
+	 * Defaults to opening the dropdown; subclasses (e.g.
+	 * {@link CyclingPermissionPicker}) override this to change the interaction.
+	 */
+	protected _onTriggerActivated(): void {
+		this.showPicker();
 	}
 
 	showPicker(): void {
@@ -349,6 +359,30 @@ export class PermissionPicker extends Disposable {
 
 	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
 		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
+	}
+}
+
+/**
+ * A {@link PermissionPicker} variant that cycles through the available levels
+ * on each click instead of opening a dropdown. Used in the Agents window input
+ * to collapse the approvals control to a single, low-cognitive-load chip that
+ * advances Default → Ask Questions → Autopilot → Default. Enterprise policy that
+ * disables global auto-approval clamps the cycle to Default only.
+ */
+export class CyclingPermissionPicker extends PermissionPicker {
+
+	protected override _onTriggerActivated(): void {
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
+		// When policy forbids elevated levels, only Default is selectable, so the
+		// cycle is a no-op rather than showing an option the user cannot pick.
+		const selectable = policyRestricted ? levels.filter(level => level === ChatPermissionLevel.Default) : levels;
+		if (selectable.length <= 1) {
+			return;
+		}
+		const currentIndex = selectable.indexOf(this._currentLevel);
+		const next = selectable[(currentIndex + 1) % selectable.length];
+		this._selectLevel(next);
 	}
 }
 

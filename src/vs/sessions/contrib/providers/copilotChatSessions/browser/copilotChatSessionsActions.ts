@@ -23,7 +23,7 @@ import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
-import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { CopilotPermissionPickerDelegate, CyclingPermissionPicker } from './permissionPicker.js';
 import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -231,7 +231,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				(_action, _options, scopedInstantiationService) => {
 					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 					const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
-					const picker = scopedInstantiationService.createInstance(PermissionPicker, delegate);
+					const picker = scopedInstantiationService.createInstance(CyclingPermissionPicker, delegate);
 					return new PickerActionViewItem(picker, delegate);
 				},
 			));
