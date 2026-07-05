@@ -91,6 +91,7 @@ export class HighLowModelPicker extends Disposable {
 		this._renderDisposables.add(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._applyMode(this._mode, /*persist*/ false);
 			this._updateTriggerLabel();
+			this._updateVisibility(this._session.get());
 		}));
 
 		this._updateTriggerLabel();
@@ -153,10 +154,11 @@ export class HighLowModelPicker extends Disposable {
 		if (!this._container) {
 			return;
 		}
-		// Hide the toggle when the session offers no models (mirrors the model
-		// picker's historical behavior for providers without a model list).
-		const hasModels = session ? (this._sessionsProvidersService.getProvider(session.providerId)?.getModels(session.sessionId).length ?? 0) > 0 : false;
-		this._container.style.display = hasModels ? '' : 'none';
+		// Show the toggle whenever there is an active session. Unlike the old
+		// model picker we do not hide while the model list is still loading —
+		// the toggle occupies the model picker's slot and applies the resolved
+		// model once the list arrives (see the onDidChangeLanguageModels hook).
+		this._container.style.display = session ? '' : 'none';
 	}
 
 	private _label(mode: HighLowMode): string {
