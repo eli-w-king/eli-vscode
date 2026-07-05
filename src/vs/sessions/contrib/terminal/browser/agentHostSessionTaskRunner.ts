@@ -56,7 +56,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			byLabel.set(entry.task.label, entry.task);
 		}
 
-		const command = resolveTaskCommand(task, { lookup: label => byLabel.get(label) });
+		const command = await resolveTaskCommand(task, { lookup: label => byLabel.get(label) });
 		if (!command) {
 			this._logService.trace(`${LOG_PREFIX} Skipping task '${task.label}' — no command could be resolved.`);
 			return undefined;

@@ -19,7 +19,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js'
 import { SessionHeader, SessionViewFloatingToolbar, SessionLowerRegionMode } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionProviderIdContext, SessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -137,8 +137,8 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
 		this._sessionIsReadKey = SessionIsReadContext.bindTo(scopedContextKeyService);
 		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
-		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
-		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
+		this._chatSessionProviderIdKey = SessionProviderIdContext.bindTo(scopedContextKeyService);
+		this._chatSessionTypeKey = SessionTypeContext.bindTo(scopedContextKeyService);
 		this._sessionHasChangesKey = SessionHasChangesContext.bindTo(scopedContextKeyService);
 
 		// Scoped service exposing this view's session so toolbars and contributed

@@ -112,7 +112,7 @@ export class SessionsNavigation extends Disposable {
 				return;
 			}
 
-			// Skip untitled chats (a new session that hasn't been submitted)
+			// Skip untitled chats (new-chat-in-session that hasn't been submitted)
 			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
 				? activeChat.resource
 				: undefined;

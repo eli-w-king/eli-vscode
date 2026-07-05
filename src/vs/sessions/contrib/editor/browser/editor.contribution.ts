@@ -24,6 +24,7 @@ import { resolveCommandsContext } from '../../../../workbench/browser/parts/edit
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
@@ -308,7 +309,8 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const navigation = activeGroup.activeEditorPane?.options?.modal?.navigation;
 		if (navigation) {
 			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			const changes = view?.viewModel.activeSessionChangesObs.get();
+			const changesViewService = accessor.get(IChangesViewService);
+			const changes = changesViewService.activeSessionChangesObs.get();
 
 			if (changes && navigation.current < changes.length) {
 				// Reopen multi-file diff editor for the current file

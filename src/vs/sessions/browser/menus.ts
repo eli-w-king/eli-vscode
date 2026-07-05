@@ -22,6 +22,7 @@ export const Menus = {
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
+	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarFooterActions: new MenuId('SessionsSidebarFooterActions'),

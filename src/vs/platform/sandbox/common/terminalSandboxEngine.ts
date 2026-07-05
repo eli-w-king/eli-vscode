@@ -665,7 +665,6 @@ export class TerminalSandboxEngine extends Disposable {
 			tempDir: this._tempDir,
 			schemaVersion: windowsSchemaVersion,
 			allowNetwork,
-			networkDomains: this.getResolvedNetworkDomains(),
 			allowReadPaths,
 			allowWritePaths,
 			denyReadPaths,
@@ -680,8 +679,12 @@ export class TerminalSandboxEngine extends Disposable {
 			},
 		};
 		if (this._os !== OperatingSystem.Windows) {
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, commandRuntimeSetting);
+			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
+			if (this._os === OperatingSystem.Macintosh) {
+				sandboxRuntimeSettings.allowPty ??= true;
+			}
 		}
 		this._sandboxConfigPath = configFilePath;
 		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
@@ -924,7 +927,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
 		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
-		return [...new Set(resolvedPaths.flat())];
+		const seenPaths = new Set<string>();
+		return resolvedPaths.flat().filter(path => {
+			const comparisonKey = this._getFileSystemPathComparisonKey(path);
+			if (seenPaths.has(comparisonKey)) {
+				return false;
+			}
+			seenPaths.add(comparisonKey);
+			return true;
+		});
+	}
+
+	private _getFileSystemPathComparisonKey(path: string): string {
+		return this._os === OperatingSystem.Windows ? path.replace(/\//g, '\\').toLowerCase() : path;
 	}
 
 	private async _resolveFileSystemPath(path: string): Promise<string[]> {

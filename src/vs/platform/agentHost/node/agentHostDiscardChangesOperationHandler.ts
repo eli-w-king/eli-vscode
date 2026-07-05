@@ -14,7 +14,7 @@ import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
@@ -59,7 +59,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.summary.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectory;
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}

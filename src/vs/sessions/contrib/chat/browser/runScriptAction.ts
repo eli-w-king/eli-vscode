@@ -29,7 +29,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
+import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -259,7 +259,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						id: GENERATE_RUN_ACTION_ID,
 						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
-						precondition: ActiveSessionWorkspaceIsVirtualContext.toNegated(),
+						precondition: SessionWorkspaceIsVirtualContext.toNegated(),
 						menu: [{
 							id: RunScriptDropdownMenuId,
 							group: tasks.length === 0 ? 'navigation' : '1_configure',
@@ -684,7 +684,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	icon: Codicon.play,
 	group: '1_session',
 	order: 20,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, ActiveSessionWorkspaceIsVirtualContext.toNegated())
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown when the active session does not support running scripts
@@ -700,7 +700,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: '1_session',
 				order: 20,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, ActiveSessionWorkspaceIsVirtualContext)
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionIsCreatedContext, SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}
