@@ -36,6 +36,7 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
+import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, AGENT_SESSIONS_HIGH_REASONING_SETTING, AGENT_SESSIONS_LOW_REASONING_SETTING } from './highLowModel.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
@@ -134,6 +135,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
+		},
+		[AGENT_SESSIONS_HIGH_MODEL_SETTING]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('chat.agentSessions.highModel', "The model used for **High** mode in the Agents Window input toggle. Set to a model identifier or display name. When empty, the latest available Opus model is used."),
+		},
+		[AGENT_SESSIONS_LOW_MODEL_SETTING]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('chat.agentSessions.lowModel', "The model used for **Low** mode in the Agents Window input toggle. Set to a model identifier or display name. When empty, the latest available Haiku model is used."),
+		},
+		[AGENT_SESSIONS_HIGH_REASONING_SETTING]: {
+			type: 'string',
+			enum: ['low', 'medium', 'high'],
+			default: 'high',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.highReasoning', "The reasoning effort applied in High mode, for models that support it."),
+		},
+		[AGENT_SESSIONS_LOW_REASONING_SETTING]: {
+			type: 'string',
+			enum: ['low', 'medium', 'high'],
+			default: 'low',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.lowReasoning', "The reasoning effort applied in Low mode, for models that support it."),
 		},
 	},
 });
