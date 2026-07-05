@@ -25,7 +25,10 @@ export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray
 		return model.variables;
 	}
 
-	if (widget.input.attachmentModel.attachments.length > 0 && widget.viewModel.editing) {
+	// Transcript-only widgets (e.g. the Agents window session cards) have no
+	// input part, so there are no in-flight input attachments to resolve; fall
+	// through to the tracked dynamic variables below.
+	if (widget.input && widget.input.attachmentModel.attachments.length > 0 && widget.viewModel.editing) {
 		const references: IDynamicVariable[] = [];
 		const editorModel = widget.inputEditor.getModel();
 		const modelTextLength = editorModel?.getValueLength() ?? 0;
@@ -68,6 +71,11 @@ export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray
 }
 
 export function getSelectedToolAndToolSetsForWidget(widget: IChatWidget): ToolAndToolSetEnablementMap {
+	// Transcript-only widgets (e.g. the Agents window session cards) have no
+	// input part and therefore no selected-tools model.
+	if (!widget.input) {
+		return ToolAndToolSetEnablementMap.fromEntries([]);
+	}
 	return widget.input.selectedToolsModel.entriesMap.get();
 }
 
