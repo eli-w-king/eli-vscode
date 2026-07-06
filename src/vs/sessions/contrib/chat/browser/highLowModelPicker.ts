@@ -59,8 +59,8 @@ export class HighLowModelPicker extends Disposable {
 
 		const control = this._renderDisposables.add(new SessionsSegmentedControl<HighLowMode>(
 			[
-				{ value: 'low', label: this._label('low'), icon: Codicon.zap, title: this._segmentTitle('low') },
-				{ value: 'high', label: this._label('high'), icon: Codicon.sparkle, title: this._segmentTitle('high') },
+				{ value: 'low', label: this._label('low'), icon: Codicon.arrowDown, title: this._segmentTitle('low') },
+				{ value: 'high', label: this._label('high'), icon: Codicon.arrowUp, title: this._segmentTitle('high') },
 			],
 			mode => this._setMode(mode),
 			localize('highLowModel.ariaLabel', "Model mode"),
