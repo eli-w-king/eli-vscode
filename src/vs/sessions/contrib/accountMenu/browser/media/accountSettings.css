@@ -62,7 +62,43 @@
 	align-items: center;
 }
 
-/* ---- Switch ---- */
+/* ---- Model rows: model select + inline config (Thinking, Context) ---- */
+
+/* Give the control area room for the model select plus its inline config
+ * controls by letting the label shrink to its natural width. */
+.agent-sessions-workbench .sessions-account-settings-row:has(.sessions-account-settings-model-control) .sessions-account-settings-row-text {
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench .sessions-account-settings-model-control {
+	flex: 1 1 auto;
+	min-width: 0;
+	gap: 6px;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+/* The model select may hold long names; let it shrink and ellipsize so the
+ * inline config controls stay on the row. */
+.agent-sessions-workbench .sessions-account-settings-model-control > .sessions-account-settings-select:not(.sessions-account-settings-select-compact) {
+	min-width: 0;
+	flex: 0 1 auto;
+	max-width: 150px;
+	text-overflow: ellipsis;
+}
+
+.agent-sessions-workbench .sessions-account-settings-model-config {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench .sessions-account-settings-select-compact {
+	min-width: 0;
+	flex: 0 0 auto;
+}
+
 
 .agent-sessions-workbench .sessions-account-settings-switch {
 	position: relative;

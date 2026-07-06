@@ -17,6 +17,13 @@ export const AGENT_SESSIONS_HIGH_MODEL_SETTING = 'chat.agentSessions.highModel';
 export const AGENT_SESSIONS_LOW_MODEL_SETTING = 'chat.agentSessions.lowModel';
 export const AGENT_SESSIONS_HIGH_REASONING_SETTING = 'chat.agentSessions.highReasoning';
 export const AGENT_SESSIONS_LOW_REASONING_SETTING = 'chat.agentSessions.lowReasoning';
+export const AGENT_SESSIONS_HIGH_CONTEXT_SETTING = 'chat.agentSessions.highContextSize';
+export const AGENT_SESSIONS_LOW_CONTEXT_SETTING = 'chat.agentSessions.lowContextSize';
+
+/** Config property keys a model's `configurationSchema` uses for reasoning effort. */
+export const MODEL_REASONING_CONFIG_KEYS = ['reasoningEffort', 'thinkingLevel'] as const;
+/** Config property key a model's `configurationSchema` uses for context window size. */
+export const MODEL_CONTEXT_CONFIG_KEY = 'contextSize';
 
 /** The model-family keyword each mode auto-resolves to when unconfigured. */
 export const DEFAULT_MODE_FAMILY: Record<HighLowMode, string> = {

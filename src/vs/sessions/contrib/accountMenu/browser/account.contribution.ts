@@ -30,7 +30,7 @@ import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, HighLowMode, resolveModelForMode } from '../../chat/browser/highLowModel.js';
+import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, AGENT_SESSIONS_HIGH_REASONING_SETTING, AGENT_SESSIONS_LOW_REASONING_SETTING, AGENT_SESSIONS_HIGH_CONTEXT_SETTING, AGENT_SESSIONS_LOW_CONTEXT_SETTING, MODEL_REASONING_CONFIG_KEYS, MODEL_CONTEXT_CONFIG_KEY, HighLowMode, resolveModelForMode } from '../../chat/browser/highLowModel.js';
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IWorkbenchThemeService, ThemeSettings } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -702,8 +702,16 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	 */
 	private createModelModeRow(list: HTMLElement, store: DisposableStore, mode: HighLowMode, label: string): void {
 		const control = this.createSettingRow(list, label, undefined);
+		control.classList.add('sessions-account-settings-model-control');
 		const select = append(control, $('select.sessions-account-settings-select')) as HTMLSelectElement;
 		select.setAttribute('aria-label', label);
+
+		// Inline config controls (Thinking Effort, Context Size) for the model
+		// backing this mode. Rendered on the same row, right of the model select,
+		// and rebuilt whenever the selected model changes so the options track
+		// the model's own schema.
+		const configContainer = append(control, $('.sessions-account-settings-model-config'));
+		const configStore = store.add(new DisposableStore());
 
 		const settingKey = mode === 'high' ? AGENT_SESSIONS_HIGH_MODEL_SETTING : AGENT_SESSIONS_LOW_MODEL_SETTING;
 		const rebuild = () => {
@@ -739,12 +747,86 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				el.textContent = localize('settingsModelUnavailable', "{0} (unavailable)", effective);
 			}
 			select.value = effective;
+
+			this.rebuildModelConfigRows(configContainer, configStore, mode, effective);
 		};
 		rebuild();
 		store.add(this.languageModelsService.onDidChangeLanguageModels(() => rebuild()));
 		store.add(addDisposableListener(select, EventType.CHANGE, () => {
 			this.configurationService.updateValue(settingKey, select.value, ConfigurationTarget.USER);
+			this.rebuildModelConfigRows(configContainer, configStore, mode, select.value);
 		}));
+	}
+
+	/**
+	 * Renders "Thinking Effort" and "Context Size" sub-rows for the model backing
+	 * a High/Low mode. Options, labels and defaults come from the resolved
+	 * model's own `configurationSchema` (so they always match what the model
+	 * supports), but the chosen values are stored in durable per-mode settings —
+	 * not the per-model config store — so they persist regardless of model-list
+	 * churn and are applied to the resolved model when the mode is selected in
+	 * the input (see {@link HighLowModelPicker}). Renders nothing when the model
+	 * exposes neither option.
+	 */
+	private rebuildModelConfigRows(container: HTMLElement, store: DisposableStore, mode: HighLowMode, modelName: string): void {
+		store.clear();
+		container.textContent = '';
+
+		let modelId: string | undefined;
+		for (const id of this.languageModelsService.getLanguageModelIds()) {
+			const meta = this.languageModelsService.lookupLanguageModel(id);
+			if (meta && meta.name === modelName) {
+				modelId = id;
+				break;
+			}
+		}
+		const properties = modelId ? this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema?.properties : undefined;
+		if (!properties) {
+			return;
+		}
+
+		for (const [key, prop] of Object.entries(properties)) {
+			const isReasoning = (MODEL_REASONING_CONFIG_KEYS as readonly string[]).includes(key);
+			const isContext = key === MODEL_CONTEXT_CONFIG_KEY;
+			if (!isReasoning && !isContext) {
+				continue;
+			}
+			const values = Array.isArray(prop.enum) ? prop.enum : undefined;
+			// Only surface a control when the model offers a real choice — a
+			// single-option select (e.g. a model with one context tier) would be
+			// dead UI.
+			if (!values || values.length < 2) {
+				continue;
+			}
+			const labels = Array.isArray(prop.enumItemLabels) ? prop.enumItemLabels : undefined;
+			const rowLabel = typeof prop.title === 'string' ? prop.title : key;
+			const propSelect = append(container, $('select.sessions-account-settings-select.sessions-account-settings-select-compact')) as HTMLSelectElement;
+			propSelect.setAttribute('aria-label', rowLabel);
+			propSelect.title = rowLabel;
+
+			const configKey = isReasoning
+				? (mode === 'high' ? AGENT_SESSIONS_HIGH_REASONING_SETTING : AGENT_SESSIONS_LOW_REASONING_SETTING)
+				: (mode === 'high' ? AGENT_SESSIONS_HIGH_CONTEXT_SETTING : AGENT_SESSIONS_LOW_CONTEXT_SETTING);
+
+			// A stored value of "" (reasoning) or 0 (context) means "use the
+			// model's default", so fall back to the schema default for display.
+			const stored = this.configurationService.getValue<string | number>(configKey);
+			const hasStored = isContext ? (typeof stored === 'number' && stored > 0) : (typeof stored === 'string' && stored.length > 0);
+			const effectiveValue = hasStored ? stored : prop.default;
+
+			values.forEach((value, index) => {
+				const el = append(propSelect, $('option')) as HTMLOptionElement;
+				el.value = String(index);
+				el.textContent = labels?.[index] ?? String(value);
+			});
+			const currentIndex = values.findIndex(v => v === effectiveValue);
+			propSelect.value = String(currentIndex >= 0 ? currentIndex : 0);
+
+			store.add(addDisposableListener(propSelect, EventType.CHANGE, () => {
+				const chosen = values[Number(propSelect.value)];
+				this.configurationService.updateValue(configKey, chosen, ConfigurationTarget.USER);
+			}));
+		}
 	}
 
 	private getAppearanceMode(): AppearanceMode {

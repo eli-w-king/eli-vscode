@@ -5,8 +5,10 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export interface ISegmentOption<T extends string> {
 	readonly value: T;
@@ -40,6 +42,7 @@ export class SessionsSegmentedControl<T extends string> extends Disposable {
 		private readonly _options: readonly ISegmentOption<T>[],
 		private readonly _onSelect: (value: T) => void,
 		private readonly _ariaLabel: string,
+		private readonly _hoverService?: IHoverService,
 	) {
 		super();
 	}
@@ -66,7 +69,14 @@ export class SessionsSegmentedControl<T extends string> extends Disposable {
 			label.textContent = option.label;
 			button.setAttribute('aria-label', option.ariaLabel ?? option.label);
 			if (option.title) {
-				button.title = option.title;
+				// Route through IHoverService when available so we show a single
+				// themed tooltip; fall back to the native title otherwise. Using
+				// both at once would stack two overlapping tooltips.
+				if (this._hoverService) {
+					this._segmentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, option.title));
+				} else {
+					button.title = option.title;
+				}
 			}
 			this._buttons.set(option.value, button);
 

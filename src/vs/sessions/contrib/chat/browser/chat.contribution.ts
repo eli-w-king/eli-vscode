@@ -36,7 +36,7 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
-import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, AGENT_SESSIONS_HIGH_REASONING_SETTING, AGENT_SESSIONS_LOW_REASONING_SETTING } from './highLowModel.js';
+import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, AGENT_SESSIONS_HIGH_REASONING_SETTING, AGENT_SESSIONS_LOW_REASONING_SETTING, AGENT_SESSIONS_HIGH_CONTEXT_SETTING, AGENT_SESSIONS_LOW_CONTEXT_SETTING } from './highLowModel.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
@@ -150,17 +150,29 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[AGENT_SESSIONS_HIGH_REASONING_SETTING]: {
 			type: 'string',
-			enum: ['low', 'medium', 'high'],
+			enum: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
 			default: 'high',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.highReasoning', "The reasoning effort applied in High mode, for models that support it."),
 		},
 		[AGENT_SESSIONS_LOW_REASONING_SETTING]: {
 			type: 'string',
-			enum: ['low', 'medium', 'high'],
+			enum: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
 			default: 'low',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.lowReasoning', "The reasoning effort applied in Low mode, for models that support it."),
+		},
+		[AGENT_SESSIONS_HIGH_CONTEXT_SETTING]: {
+			type: 'number',
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.highContextSize', "The context window size (in tokens) applied in High mode, for models that support it. 0 uses the model default."),
+		},
+		[AGENT_SESSIONS_LOW_CONTEXT_SETTING]: {
+			type: 'number',
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.lowContextSize', "The context window size (in tokens) applied in Low mode, for models that support it. 0 uses the model default."),
 		},
 	},
 });

@@ -11,12 +11,11 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, HighLowMode, resolveModelForMode } from './highLowModel.js';
+import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, AGENT_SESSIONS_HIGH_REASONING_SETTING, AGENT_SESSIONS_LOW_REASONING_SETTING, AGENT_SESSIONS_HIGH_CONTEXT_SETTING, AGENT_SESSIONS_LOW_CONTEXT_SETTING, MODEL_REASONING_CONFIG_KEYS, MODEL_CONTEXT_CONFIG_KEY, HighLowMode, resolveModelForMode } from './highLowModel.js';
 import { SessionsSegmentedControl } from './sessionsSegmentedControl.js';
 
 function modeStorageKey(providerId: string, sessionType: string): string {
@@ -64,10 +63,10 @@ export class HighLowModelPicker extends Disposable {
 			],
 			mode => this._setMode(mode),
 			localize('highLowModel.ariaLabel', "Model mode"),
+			this._hoverService,
 		));
 		this._control = control;
-		const group = control.render(slot);
-		this._renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), group, () => this._buildHover()));
+		control.render(slot);
 
 		// Track the active session: restore the remembered mode and (re-)apply
 		// its model whenever the session changes.
@@ -127,6 +126,39 @@ export class HighLowModelPicker extends Disposable {
 		const model = resolveModelForMode(models, mode, override);
 		if (model) {
 			provider.setModel(session.sessionId, model.identifier);
+			this._applyModelConfig(mode, model);
+		}
+	}
+
+	/**
+	 * Applies the mode's configured Thinking Effort / Context Size (from the
+	 * durable per-mode settings) to the resolved model, using whichever config
+	 * keys the model's own schema exposes. Only values the model actually
+	 * supports (present in the schema's `enum`) are written, so a stored choice
+	 * from a differently-capable model is ignored rather than mis-applied.
+	 */
+	private _applyModelConfig(mode: HighLowMode, model: ILanguageModelChatMetadataAndIdentifier): void {
+		const properties = model.metadata.configurationSchema?.properties;
+		if (!properties) {
+			return;
+		}
+		const values: Record<string, unknown> = {};
+		for (const [key, prop] of Object.entries(properties)) {
+			const enumValues = Array.isArray(prop.enum) ? prop.enum : [];
+			if ((MODEL_REASONING_CONFIG_KEYS as readonly string[]).includes(key)) {
+				const stored = this._configurationService.getValue<string>(mode === 'high' ? AGENT_SESSIONS_HIGH_REASONING_SETTING : AGENT_SESSIONS_LOW_REASONING_SETTING);
+				if (typeof stored === 'string' && stored.length > 0 && enumValues.includes(stored)) {
+					values[key] = stored;
+				}
+			} else if (key === MODEL_CONTEXT_CONFIG_KEY) {
+				const stored = this._configurationService.getValue<number>(mode === 'high' ? AGENT_SESSIONS_HIGH_CONTEXT_SETTING : AGENT_SESSIONS_LOW_CONTEXT_SETTING);
+				if (typeof stored === 'number' && stored > 0 && enumValues.includes(stored)) {
+					values[key] = stored;
+				}
+			}
+		}
+		if (Object.keys(values).length > 0) {
+			this._languageModelsService.setModelConfiguration(model.identifier, values);
 		}
 	}
 
@@ -165,15 +197,6 @@ export class HighLowModelPicker extends Disposable {
 		return model
 			? localize('highLowModel.lowTitleModel', "Low — faster, lighter model ({0})", model)
 			: localize('highLowModel.lowTitle', "Low — faster, lighter model");
-	}
-
-	private _buildHover(): string {
-		const highModel = this._resolvedModelName('high');
-		const lowModel = this._resolvedModelName('low');
-		if (highModel && lowModel) {
-			return localize('highLowModel.hoverBoth', "Model mode. High: {0}. Low: {1}.", highModel, lowModel);
-		}
-		return localize('highLowModel.hover', "Switch the model between Low and High.");
 	}
 
 	private _updateControl(): void {

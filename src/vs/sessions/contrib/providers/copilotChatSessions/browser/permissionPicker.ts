@@ -20,7 +20,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { SessionsSegmentedControl } from '../../../chat/browser/sessionsSegmentedControl.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -422,13 +421,10 @@ export class ApprovalsSegmentedControl extends Disposable {
 			}),
 			level => this._selectLevel(level),
 			localize('approvals.ariaLabel', "Approvals"),
+			this.hoverService,
 		));
 		this._control = control;
-		const group = control.render(slot);
-		this._renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), group, () => {
-			const meta = getPermissionLevelMeta(this._currentLevel);
-			return this._getPermissionLevelHover(this._currentLevel, meta) ?? meta.label;
-		}));
+		control.render(slot);
 		control.setValue(this._currentLevel);
 
 		const currentPermissionLevel = this._delegate.currentPermissionLevel;
