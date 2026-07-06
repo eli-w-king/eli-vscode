@@ -285,9 +285,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 					return completedStateIcon;
 				}
 				if (!isRead) {
+					// Same glyph/size as the read dot below so read and unread
+					// indicators are visually consistent — the accent color (vs.
+					// the muted read color) is what distinguishes unread.
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				return { ...Codicon.circleFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 

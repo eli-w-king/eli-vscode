@@ -239,12 +239,14 @@
 		font-size: var(--vscode-agents-fontSize-body1, 13px);
 	}
 
+	/* Read sessions use a lighter, muted title so unread/attention rows stand
+	 * out more when scanning the list (see the strong-foreground override below). */
 	.session-title {
-		color: var(--vscode-foreground);
+		color: var(--vscode-descriptionForeground);
 	}
 
 	/* Strong foreground is reserved for sessions that need attention: */
-	/* unread, input required, or selected. All others use foreground. */
+	/* unread, input required, or selected. All others use the muted color above. */
 	&.unread .session-title,
 	&.needs-input .session-title {
 		color: var(--vscode-strongForeground);
