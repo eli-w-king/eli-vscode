@@ -253,22 +253,22 @@
 	border: none;
 	background: transparent;
 	color: var(--vscode-icon-foreground);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-agents-fontSize-label3, 10px);
 	font-family: inherit;
 	line-height: 1;
-	padding: 3px 8px;
+	padding: 2px 5px;
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
 	transition: background-color 100ms ease-out, color 100ms ease-out;
 }
 
 .sessions-chat-segmented .sessions-chat-segment .sessions-chat-segment-icon.codicon {
-	font-size: 11px;
+	font-size: 10px;
 	line-height: 1;
 	opacity: 0.7;
 	transition: opacity 100ms ease-out;
@@ -348,7 +348,7 @@
 /* Subtle, smaller state icon on the approvals dropdown to match the composer's
  * dimmed segment icons — full strength only when the row is hovered/focused. */
 .sessions-chat-picker-slot.sessions-chat-permission-picker .action-label .codicon {
-	font-size: 11px;
+	font-size: 10px;
 	opacity: 0.7;
 	transition: opacity 100ms ease-out;
 }
