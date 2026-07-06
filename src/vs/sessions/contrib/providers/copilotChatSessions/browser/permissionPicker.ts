@@ -20,6 +20,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { SessionsSegmentedControl } from '../../../chat/browser/sessionsSegmentedControl.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -363,26 +365,118 @@ export class PermissionPicker extends Disposable {
 }
 
 /**
- * A {@link PermissionPicker} variant that cycles through the available levels
- * on each click instead of opening a dropdown. Used in the Agents window input
- * to collapse the approvals control to a single, low-cognitive-load chip that
- * advances Default → Ask Questions → Autopilot → Default. Enterprise policy that
- * disables global auto-approval clamps the cycle to Default only.
+ * The Agents window input's approvals control, rendered as a compact three-segment
+ * toggle `Manual | Ask Questions | Autopilot` to keep the input flat and reduce
+ * cognitive load. The segments map onto the {@link ChatPermissionLevel} axis:
+ * Manual = Default (approve each tool), Ask Questions = AutoApprove (auto-approve
+ * tools but stay interactive), Autopilot = Autopilot (auto-approve and run to
+ * completion). Selecting an elevated segment shows the same confirmation as the
+ * dropdown; enterprise policy that disables global auto-approval clamps the
+ * control to Manual only.
  */
-export class CyclingPermissionPicker extends PermissionPicker {
+export class ApprovalsSegmentedControl extends Disposable {
 
-	protected override _onTriggerActivated(): void {
+	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
+	private _control: SessionsSegmentedControl<ChatPermissionLevel> | undefined;
+	private readonly _renderDisposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly _delegate: IPermissionPickerDelegate,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+	}
+
+	private _segmentLabel(level: ChatPermissionLevel): string {
+		switch (level) {
+			case ChatPermissionLevel.AutoApprove:
+				return localize('approvals.askQuestions', "Ask Questions");
+			case ChatPermissionLevel.Autopilot:
+				return localize('approvals.autopilot', "Autopilot");
+			case ChatPermissionLevel.Default:
+			default:
+				return localize('approvals.manual', "Manual");
+		}
+	}
+
+	render(container: HTMLElement): HTMLElement {
+		this._renderDisposables.clear();
+
+		const configuredDefault = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const initialLevel = isChatPermissionLevel(configuredDefault) ? configuredDefault : ChatPermissionLevel.Default;
+		this._currentLevel = policyRestricted ? ChatPermissionLevel.Default : initialLevel;
+
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-approvals-picker'));
+		this._renderDisposables.add({ dispose: () => slot.remove() });
+
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
-		// When policy forbids elevated levels, only Default is selectable, so the
-		// cycle is a no-op rather than showing an option the user cannot pick.
-		const selectable = policyRestricted ? levels.filter(level => level === ChatPermissionLevel.Default) : levels;
-		if (selectable.length <= 1) {
+		const control = this._renderDisposables.add(new SessionsSegmentedControl<ChatPermissionLevel>(
+			levels.map(level => {
+				const meta = getPermissionLevelMeta(level);
+				return { value: level, label: this._segmentLabel(level), ariaLabel: meta.label, title: this._getPermissionLevelHover(level, meta) };
+			}),
+			level => this._selectLevel(level),
+			localize('approvals.ariaLabel', "Approvals"),
+		));
+		this._control = control;
+		const group = control.render(slot);
+		this._renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), group, () => {
+			const meta = getPermissionLevelMeta(this._currentLevel);
+			return this._getPermissionLevelHover(this._currentLevel, meta) ?? meta.label;
+		}));
+		control.setValue(this._currentLevel);
+
+		const currentPermissionLevel = this._delegate.currentPermissionLevel;
+		if (currentPermissionLevel) {
+			this._renderDisposables.add(autorun(reader => {
+				const level = currentPermissionLevel.read(reader);
+				if (level === undefined) {
+					return;
+				}
+				this._currentLevel = level;
+				this._control?.setValue(level);
+			}));
+		}
+
+		const isApplicable = this._delegate.isApplicable;
+		if (isApplicable) {
+			this._renderDisposables.add(autorun(reader => {
+				const visible = isApplicable.read(reader);
+				slot.style.display = visible ? '' : 'none';
+				container.style.display = visible ? '' : 'none';
+			}));
+		}
+
+		return slot;
+	}
+
+	private async _selectLevel(level: ChatPermissionLevel): Promise<void> {
+		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, { defaultSettingKey: this._delegate.defaultSettingKey })) {
+			// Rejected in the confirmation dialog — revert the visual selection.
+			this._control?.setValue(this._currentLevel);
 			return;
 		}
-		const currentIndex = selectable.indexOf(this._currentLevel);
-		const next = selectable[(currentIndex + 1) % selectable.length];
-		this._selectLevel(next);
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatPermissionPicker',
+			name: 'NewChatPermissionPicker',
+			optionIdBefore: this._currentLevel,
+			optionIdAfter: level,
+			optionLabelBefore: undefined,
+			optionLabelAfter: undefined,
+			isPII: false,
+		});
+		this._currentLevel = level;
+		this._control?.setValue(level);
+		this._delegate.setPermissionLevel(level);
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
+		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
 	}
 }
 

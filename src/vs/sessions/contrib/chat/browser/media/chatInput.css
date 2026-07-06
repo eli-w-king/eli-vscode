@@ -235,6 +235,48 @@
 	gap: 4px;
 }
 
+/* Inline segmented controls (approvals: Manual | Ask Questions | Autopilot,
+ * and model: Low | High). Flat pill of mutually-exclusive segments that sit
+ * alongside the mode selection to keep the input controls low-cognitive-load. */
+.sessions-chat-segmented {
+	display: inline-flex;
+	align-items: center;
+	gap: 1px;
+	padding: 1px;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-segment {
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-family: inherit;
+	line-height: 1;
+	padding: 3px 8px;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	cursor: pointer;
+	touch-action: manipulation;
+	white-space: nowrap;
+}
+
+.sessions-chat-segment:hover {
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-segment.active {
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.sessions-chat-segment:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 /* Send button - wraps a Button widget */
 .sessions-chat-send-button {
 	display: flex;

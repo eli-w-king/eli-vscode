@@ -28,6 +28,8 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, HighLowMode, resolveModelForMode } from '../../chat/browser/highLowModel.js';
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IWorkbenchThemeService, ThemeSettings } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -57,8 +59,6 @@ const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 
 // Configuration keys backing the inline settings shown in the account flyout. The Agents window
 // surfaces a deliberately small, curated set of controls here instead of the full settings editor.
-const SETTING_AGENT_SESSION_DEFAULTS = 'chat.agentSessions.defaultConfiguration';
-const SETTING_PERMISSIONS_DEFAULT = 'chat.permissions.default';
 const SETTING_MAX_REQUESTS = 'chat.agent.maxRequests';
 const SETTING_SIGNAL_RESPONSE = 'accessibility.signals.chatResponseReceived';
 const SETTING_SIGNAL_ACTION = 'accessibility.signals.chatUserActionRequired';
@@ -187,6 +187,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
@@ -561,19 +562,18 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			value => this.setMaxRequests(value),
 		);
 
+		// High / Low model modes: the input's model toggle flips between these
+		// two preconfigured models. High defaults to the latest Opus, Low to the
+		// latest Haiku; both are configurable here.
+		this.createModelModeRow(list, store, 'high', localize('settingsHighModel', "High model"));
+		this.createModelModeRow(list, store, 'low', localize('settingsLowModel', "Low model"));
+
 		// Toggles are grouped together at the bottom.
 		this.createToggleRow(list, store,
 			localize('settingsSound', "Sound cues"),
 			localize('settingsSoundDescription', "Play a sound on each response and when an action is needed."),
 			() => this.isSoundCuesOn(),
 			on => this.setSoundCues(on),
-		);
-
-		this.createToggleRow(list, store,
-			localize('settingsAutopilot', "Autopilot"),
-			localize('settingsAutopilotDescription', "New sessions start in autopilot and bypass approvals."),
-			() => this.isAutopilotDefault(),
-			on => this.setAutopilotDefault(on),
 		);
 	}
 
@@ -672,6 +672,60 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.addActivateListener(store, increment, () => apply(value + MAX_REQUESTS_STEP));
 	}
 
+	/**
+	 * Renders a native `<select>` row letting the user choose which model backs
+	 * the given High/Low mode. The empty option means "auto" — resolve the
+	 * latest Opus (High) / Haiku (Low) at send time. Options are the currently
+	 * available chat models; the stored value is preserved even when its model
+	 * is not currently in the list (e.g. offline) so the choice is not lost.
+	 */
+	private createModelModeRow(list: HTMLElement, store: DisposableStore, mode: HighLowMode, label: string): void {
+		const control = this.createSettingRow(list, label, undefined);
+		const select = append(control, $('select.sessions-account-settings-select')) as HTMLSelectElement;
+		select.setAttribute('aria-label', label);
+
+		const settingKey = mode === 'high' ? AGENT_SESSIONS_HIGH_MODEL_SETTING : AGENT_SESSIONS_LOW_MODEL_SETTING;
+		const rebuild = () => {
+			const configured = (this.configurationService.getValue<string>(settingKey) ?? '').trim();
+			select.textContent = '';
+
+			const available: { value: string; label: string }[] = [];
+			const seen = new Set<string>();
+			for (const id of this.languageModelsService.getLanguageModelIds()) {
+				const meta = this.languageModelsService.lookupLanguageModel(id);
+				if (!meta || meta.isUserSelectable === false || seen.has(meta.name)) {
+					continue;
+				}
+				seen.add(meta.name);
+				available.push({ value: meta.name, label: meta.name });
+			}
+
+			// Default (unconfigured) resolves to the latest model of the mode's
+			// family, so preselect that concrete model rather than showing an
+			// extra "Auto" entry.
+			const resolvedDefault = resolveModelForMode(available.map(a => ({ identifier: a.value, metadata: { name: a.value } })) as never, mode, undefined);
+			const effective = configured || resolvedDefault?.metadata.name || (available[0]?.value ?? '');
+
+			for (const option of available) {
+				const el = append(select, $('option')) as HTMLOptionElement;
+				el.value = option.value;
+				el.textContent = option.label;
+			}
+			// Preserve a configured choice that is not currently available.
+			if (effective && !seen.has(effective)) {
+				const el = append(select, $('option')) as HTMLOptionElement;
+				el.value = effective;
+				el.textContent = localize('settingsModelUnavailable', "{0} (unavailable)", effective);
+			}
+			select.value = effective;
+		};
+		rebuild();
+		store.add(this.languageModelsService.onDidChangeLanguageModels(() => rebuild()));
+		store.add(addDisposableListener(select, EventType.CHANGE, () => {
+			this.configurationService.updateValue(settingKey, select.value, ConfigurationTarget.USER);
+		}));
+	}
+
 	private getAppearanceMode(): AppearanceMode {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			return 'system';
@@ -708,35 +762,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			await this.configurationService.updateValue(ThemeSettings.SYSTEM_COLOR_THEME, 'auto', ConfigurationTarget.USER);
 		}
 		await this.themeService.setColorTheme(target.id, 'auto');
-	}
-
-	private isAutopilotDefault(): boolean {
-		// New sessions read their starting permission level from two places depending on the
-		// session type: the in-window chat input uses `chat.permissions.default`, while agent-host
-		// sessions (Copilot CLI, Claude, …) use `chat.agentSessions.defaultConfiguration`. Treat
-		// autopilot as on if either is set to autopilot.
-		if (this.configurationService.getValue<string>(SETTING_PERMISSIONS_DEFAULT) === 'autopilot') {
-			return true;
-		}
-		const agentDefaults = this.configurationService.getValue<{ mode?: string }>(SETTING_AGENT_SESSION_DEFAULTS);
-		return agentDefaults?.mode === 'autopilot';
-	}
-
-	private async setAutopilotDefault(on: boolean): Promise<void> {
-		// Drive both the local chat default and the agent-host default so new sessions start in
-		// autopilot regardless of session type.
-		await Promise.all([
-			this.configurationService.updateValue(
-				SETTING_PERMISSIONS_DEFAULT,
-				on ? 'autopilot' : 'default',
-				ConfigurationTarget.USER,
-			),
-			this.configurationService.updateValue(
-				SETTING_AGENT_SESSION_DEFAULTS,
-				on ? { mode: 'autopilot', approvals: 'autoApprove' } : {},
-				ConfigurationTarget.USER,
-			),
-		]);
 	}
 
 	private getMaxRequests(): number {

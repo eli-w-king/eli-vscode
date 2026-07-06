@@ -190,6 +190,31 @@
 	color: var(--vscode-foreground);
 }
 
+/* ---- Model mode select (High / Low model rows) ---- */
+
+.agent-sessions-workbench .sessions-account-settings-select {
+	appearance: none;
+	max-width: 160px;
+	padding: 4px 8px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: var(--vscode-bodyFontSize);
+	cursor: pointer;
+	text-overflow: ellipsis;
+}
+
+.agent-sessions-workbench .sessions-account-settings-select:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+}
+
+.agent-sessions-workbench .sessions-account-settings-select:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 /* ---- Sign out ---- */
 
 .agent-sessions-workbench .sessions-account-settings-footer {

@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -19,24 +16,25 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { AGENT_SESSIONS_HIGH_MODEL_SETTING, AGENT_SESSIONS_LOW_MODEL_SETTING, HighLowMode, resolveModelForMode } from './highLowModel.js';
+import { SessionsSegmentedControl } from './sessionsSegmentedControl.js';
 
 function modeStorageKey(providerId: string, sessionType: string): string {
 	return `sessions.highLowModel.${providerId}.${sessionType}.mode`;
 }
 
 /**
- * The Agents window input's model control, collapsed to a single High ⇄ Low
+ * The Agents window input's model control, collapsed to a two-segment `Low | High`
  * toggle to reduce cognitive load. Instead of picking a specific model, the user
  * flips between two preconfigured modes: High (latest Opus by default) and Low
- * (latest Haiku by default). Toggling applies the resolved model to the active
- * session via {@link ISessionsProvider.setModel} and remembers the chosen mode
- * per provider per session type.
+ * (latest Haiku by default). Selecting a segment applies the resolved model to
+ * the active session via {@link ISessionsProvider.setModel} and remembers the
+ * chosen mode per provider per session type.
  */
 export class HighLowModelPicker extends Disposable {
 
 	private _mode: HighLowMode = 'high';
-	private _triggerElement: HTMLElement | undefined;
 	private _container: HTMLElement | undefined;
+	private _control: SessionsSegmentedControl<HighLowMode> | undefined;
 	private _lastSessionKey: string | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
@@ -58,26 +56,17 @@ export class HighLowModelPicker extends Disposable {
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-highlow-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
-		trigger.role = 'button';
-		this._triggerElement = trigger;
-
-		this._renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), trigger, () => this._buildHover()));
-
-		this._renderDisposables.add(Gesture.addTarget(trigger));
-		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
-				dom.EventHelper.stop(e, true);
-				this._toggleMode();
-			}));
-		}
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				dom.EventHelper.stop(e, true);
-				this._toggleMode();
-			}
-		}));
+		const control = this._renderDisposables.add(new SessionsSegmentedControl<HighLowMode>(
+			[
+				{ value: 'low', label: this._label('low') },
+				{ value: 'high', label: this._label('high') },
+			],
+			mode => this._setMode(mode),
+			localize('highLowModel.ariaLabel', "Model mode"),
+		));
+		this._control = control;
+		const group = control.render(slot);
+		this._renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), group, () => this._buildHover()));
 
 		// Track the active session: restore the remembered mode and (re-)apply
 		// its model whenever the session changes.
@@ -90,11 +79,11 @@ export class HighLowModelPicker extends Disposable {
 		// model so the session lands on Opus/Haiku even if the list arrived late.
 		this._renderDisposables.add(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._applyMode(this._mode, /*persist*/ false);
-			this._updateTriggerLabel();
+			this._updateControl();
 			this._updateVisibility(this._session.get());
 		}));
 
-		this._updateTriggerLabel();
+		this._updateControl();
 	}
 
 	private _onSessionChanged(session: IActiveSession | undefined): void {
@@ -110,14 +99,14 @@ export class HighLowModelPicker extends Disposable {
 			this._mode = stored === 'low' ? 'low' : 'high';
 			this._applyMode(this._mode, /*persist*/ false);
 		}
-		this._updateTriggerLabel();
+		this._updateControl();
 		this._updateVisibility(session);
 	}
 
-	private _toggleMode(): void {
-		this._mode = this._mode === 'high' ? 'low' : 'high';
-		this._applyMode(this._mode, /*persist*/ true);
-		this._updateTriggerLabel();
+	private _setMode(mode: HighLowMode): void {
+		this._mode = mode;
+		this._applyMode(mode, /*persist*/ true);
+		this._updateControl();
 	}
 
 	private _applyMode(mode: HighLowMode, persist: boolean): void {
@@ -166,27 +155,16 @@ export class HighLowModelPicker extends Disposable {
 	}
 
 	private _buildHover(): string {
-		const modelName = this._resolvedModelName(this._mode);
-		const modeLabel = this._label(this._mode);
-		if (modelName) {
-			return localize('highLowModel.hoverWithModel', "{0} mode · {1}. Click to switch.", modeLabel, modelName);
+		const highModel = this._resolvedModelName('high');
+		const lowModel = this._resolvedModelName('low');
+		if (highModel && lowModel) {
+			return localize('highLowModel.hoverBoth', "Model mode. High: {0}. Low: {1}.", highModel, lowModel);
 		}
-		return localize('highLowModel.hover', "{0} mode. Click to switch between High and Low.", modeLabel);
+		return localize('highLowModel.hover', "Switch the model between Low and High.");
 	}
 
-	private _updateTriggerLabel(): void {
-		const trigger = this._triggerElement;
-		if (!trigger) {
-			return;
-		}
-		dom.clearNode(trigger);
-		const icon = this._mode === 'high' ? Codicon.chevronUp : Codicon.chevronDown;
-		dom.append(trigger, renderIcon(icon));
-		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = this._label(this._mode);
-		trigger.ariaLabel = localize('highLowModel.triggerAriaLabel', "Model mode, {0}, click to switch", this._label(this._mode));
-		trigger.classList.toggle('high', this._mode === 'high');
-		trigger.classList.toggle('low', this._mode === 'low');
+	private _updateControl(): void {
+		this._control?.setValue(this._mode);
 	}
 }
 

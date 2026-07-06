@@ -23,7 +23,7 @@ import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
-import { CopilotPermissionPickerDelegate, CyclingPermissionPicker } from './permissionPicker.js';
+import { CopilotPermissionPickerDelegate, ApprovalsSegmentedControl } from './permissionPicker.js';
 import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -101,7 +101,7 @@ registerAction2(class extends Action2 {
 			title: localize2('permissionPicker', "Permissions"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionControl,
+				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
@@ -221,17 +221,17 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		// web-only `CopilotPermissionPickerWebContribution` (registered
 		// from `sessions.web.main.ts`) can install the mobile-aware
 		// {@link MobilePermissionPicker} variant instead. On Electron
-		// desktop, register the standard {@link PermissionPicker}
-		// directly — the mobile-only sheet rendering never runs there
-		// and importing the mobile picker would needlessly drag
-		// `mobilePickerSheet.ts` into the desktop bundle.
+		// desktop, render the inline three-segment approvals control
+		// (Manual | Ask Questions | Autopilot) — the mobile-only sheet
+		// rendering never runs there and importing the mobile picker would
+		// needlessly drag `mobilePickerSheet.ts` into the desktop bundle.
 		if (!isWeb) {
 			this._register(actionViewItemService.register(
-				Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
+				Menus.NewSessionConfig, 'sessions.defaultCopilot.permissionPicker',
 				(_action, _options, scopedInstantiationService) => {
 					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 					const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
-					const picker = scopedInstantiationService.createInstance(CyclingPermissionPicker, delegate);
+					const picker = scopedInstantiationService.createInstance(ApprovalsSegmentedControl, delegate);
 					return new PickerActionViewItem(picker, delegate);
 				},
 			));
