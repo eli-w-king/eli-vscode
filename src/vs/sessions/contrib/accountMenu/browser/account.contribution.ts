@@ -729,6 +729,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				if (!meta || meta.isUserSelectable === false || seen.has(meta.name)) {
 					continue;
 				}
+				// The "Auto" router model doesn't fit the High/Low mental model
+				// (High = most capable, Low = fastest), so exclude it here.
+				if (meta.name.trim().toLowerCase() === 'auto') {
+					continue;
+				}
 				seen.add(meta.name);
 				available.push({ value: meta.name, label: meta.name });
 			}

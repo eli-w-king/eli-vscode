@@ -31,7 +31,6 @@ import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/co
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -46,8 +45,11 @@ import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobile
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
+import { HighLowModelPicker, HighLowModelPickerActionViewItem } from '../../../chat/browser/highLowModelPicker.js';
+import { OpenModelPickerAction } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
+import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
@@ -779,6 +781,20 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
 					session,
 				));
+			},
+		));
+		// Replace the built-in model-name picker with the Low|High toggle in
+		// running agent-host sessions so the active-session input bar matches the
+		// new-session composer. This registration only affects MenuId.ChatInput
+		// (the running-session input) in the Agents window. HighLowModelPicker
+		// reacts to the session observable and hides itself when there is no
+		// active session, so no synchronous guard is needed here.
+		this._register(actionViewItemService.register(
+			MenuId.ChatInput,
+			OpenModelPickerAction.ID,
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				return new HighLowModelPickerActionViewItem(scopedInstantiationService.createInstance(HighLowModelPicker, session));
 			},
 		));
 		this._register(actionViewItemService.register(
