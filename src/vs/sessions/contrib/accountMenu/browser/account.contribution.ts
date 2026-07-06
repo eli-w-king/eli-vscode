@@ -160,7 +160,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private iconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
-	private connectivityDotElement: HTMLElement | undefined;
+	private connectivityIndicatorElement: HTMLElement | undefined;
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
@@ -206,7 +206,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
-		this._register(this.connectivityMonitor.onDidChangeState(() => this.updateConnectivityDot()));
+		this._register(this.connectivityMonitor.onDidChangeState(() => this.updateConnectivityIndicator()));
 		this.refreshAccount();
 	}
 
@@ -229,25 +229,25 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
-		this.connectivityDotElement = append(container, $('span.sessions-account-titlebar-widget-connectivity'));
+		this.connectivityIndicatorElement = append(container, $('span.sessions-account-titlebar-widget-connectivity'));
 
-		this.updateConnectivityDot();
+		this.updateConnectivityIndicator();
 		this.renderState();
 	}
 
-	private updateConnectivityDot(): void {
-		if (!this.connectivityDotElement) {
+	private updateConnectivityIndicator(): void {
+		if (!this.connectivityIndicatorElement) {
 			return;
 		}
+		// The indicator is only surfaced when offline (a subtle red ring around the
+		// avatar); while online it is hidden via CSS and kept out of the a11y tree.
 		const isOnline = this.connectivityMonitor.isOnline;
-		this.connectivityDotElement.classList.toggle('online', isOnline);
-		this.connectivityDotElement.classList.toggle('offline', !isOnline);
-		this.connectivityDotElement.setAttribute('aria-label', isOnline
-			? localize('connectivity.online', "Online")
-			: localize('connectivity.offline', "Offline"));
-		this.connectivityDotElement.title = isOnline
-			? localize('connectivity.online', "Online")
-			: localize('connectivity.offline', "Offline");
+		this.connectivityIndicatorElement.classList.toggle('online', isOnline);
+		this.connectivityIndicatorElement.classList.toggle('offline', !isOnline);
+		this.connectivityIndicatorElement.setAttribute('aria-hidden', isOnline ? 'true' : 'false');
+		const offlineLabel = localize('connectivity.offline', "Offline");
+		this.connectivityIndicatorElement.setAttribute('aria-label', offlineLabel);
+		this.connectivityIndicatorElement.title = isOnline ? '' : offlineLabel;
 	}
 
 	override onClick(): void {
@@ -477,6 +477,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
+		if (!this.connectivityMonitor.isOnline) {
+			const offline = append(headerSection, $('.sessions-account-titlebar-panel-offline'));
+			offline.textContent = localize('accountPanelOffline', "You're offline");
+		}
 		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
 
 		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
