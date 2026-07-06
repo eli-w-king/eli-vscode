@@ -494,3 +494,57 @@
 .agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-badge {
 	transition-duration: 0ms !important;
 }
+
+/* Connectivity presence dot — anchored to the account avatar's lower-right
+ * corner. Green + gently pulsing when online, static gray when offline, so a
+ * stalled response is visually distinct from an actual loss of connectivity. */
+.agent-sessions-workbench .sessions-account-titlebar-widget-connectivity {
+	position: absolute;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	border: 1px solid var(--vscode-sideBar-background, var(--vscode-editor-background));
+	box-sizing: border-box;
+	pointer-events: none;
+	/* Titlebar compact button placement (avatar lower-right). */
+	right: 2px;
+	bottom: 2px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-connectivity.online {
+	background: var(--vscode-charts-green, #3fb950);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-connectivity.offline {
+	background: var(--vscode-descriptionForeground, #8b949e);
+}
+
+/* In the sidebar footer the widget is a labeled row; anchor the dot to the
+ * lower-right of the leading avatar/icon rather than the whole row. */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer .sessions-account-titlebar-widget-connectivity {
+	left: 19px;
+	right: auto;
+	bottom: auto;
+	top: calc(50% + 3px);
+}
+
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-connectivity.online,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-connectivity.online {
+	animation: sessions-connectivity-pulse 2s ease-in-out infinite;
+}
+
+@keyframes sessions-connectivity-pulse {
+	0%, 100% {
+		opacity: 1;
+		box-shadow: 0 0 0 0 var(--vscode-charts-green, #3fb950);
+	}
+	50% {
+		opacity: 0.6;
+		box-shadow: 0 0 0 2px transparent;
+	}
+}
+
+.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-connectivity,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-connectivity {
+	animation: none !important;
+}

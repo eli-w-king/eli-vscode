@@ -18,6 +18,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../workbench/contrib/update/browser/update.js';
 import { Menus } from '../../../browser/menus.js';
+import { ConnectivityMonitor } from '../../../browser/connectivityMonitor.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { $, append, addDisposableListener, EventType, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
@@ -159,6 +160,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private iconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
+	private connectivityDotElement: HTMLElement | undefined;
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
@@ -174,6 +176,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
+	private readonly connectivityMonitor = this._register(new ConnectivityMonitor());
 
 	constructor(
 		action: IAction,
@@ -203,6 +206,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
+		this._register(this.connectivityMonitor.onDidChangeState(() => this.updateConnectivityDot()));
 		this.refreshAccount();
 	}
 
@@ -225,8 +229,25 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
+		this.connectivityDotElement = append(container, $('span.sessions-account-titlebar-widget-connectivity'));
 
+		this.updateConnectivityDot();
 		this.renderState();
+	}
+
+	private updateConnectivityDot(): void {
+		if (!this.connectivityDotElement) {
+			return;
+		}
+		const isOnline = this.connectivityMonitor.isOnline;
+		this.connectivityDotElement.classList.toggle('online', isOnline);
+		this.connectivityDotElement.classList.toggle('offline', !isOnline);
+		this.connectivityDotElement.setAttribute('aria-label', isOnline
+			? localize('connectivity.online', "Online")
+			: localize('connectivity.offline', "Offline"));
+		this.connectivityDotElement.title = isOnline
+			? localize('connectivity.online', "Online")
+			: localize('connectivity.offline', "Offline");
 	}
 
 	override onClick(): void {

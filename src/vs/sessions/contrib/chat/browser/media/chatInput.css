@@ -243,6 +243,7 @@
 	align-items: center;
 	gap: 1px;
 	padding: 1px;
+	margin-left: 4px;
 	border-radius: var(--vscode-cornerRadius-medium, 6px);
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
