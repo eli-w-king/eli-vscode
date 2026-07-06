@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -204,10 +204,31 @@ class SessionItemActionRunner extends ActionRunner {
 	}
 }
 
+/**
+ * Generic, non-informative activity strings that shouldn't replace the session
+ * title in the list. When the current activity is one of these (or empty), the
+ * title stays put — the spinner and title shimmer already signal progress.
+ */
+const GENERIC_ACTIVITY = new Set(['working', 'thinking', 'generating', 'loading', 'processing', 'running', 'starting']);
+
+/**
+ * Returns the trimmed activity summary to show in place of the title, or
+ * `undefined` when the activity is missing or too generic to be helpful.
+ */
+function getMeaningfulActivity(description: IMarkdownString | undefined): string | undefined {
+	const text = description?.value.trim();
+	if (!text) {
+		return undefined;
+	}
+	const normalized = text.toLowerCase().replace(/[.\u2026]+$/, '').trim();
+	return GENERIC_ACTIVITY.has(normalized) ? undefined : text;
+}
+
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
+	readonly activity: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -256,7 +277,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
-		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
+		// While a session is working on a meaningful tool call, the title flips
+		// to the live activity summary and back when it finishes, in place, so
+		// the row height never changes. Both layers live inside a clipped flip
+		// container that occupies the title's slot.
+		const titleFlip = DOM.append(titleRow, $('.session-title-flip'));
+		const title = disposables.add(new HighlightedLabel(DOM.append(titleFlip, $('.session-title'))));
+		const activity = DOM.append(titleFlip, $('.session-activity'));
+		activity.setAttribute('aria-hidden', 'true');
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// The list opens a session on click and on Gesture `tap` (touch).
 		// DOM event propagation stops only cover mouse/pointer events; the
@@ -283,7 +311,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			actionRunner,
 		}));
 
-		return { container, statusIcon, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
+		return { container, statusIcon, title, activity, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -355,6 +383,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const titleText = element.title.read(reader);
 			template.title.set(titleText, matches);
+		}));
+
+		// Activity flip — while the session is working on a meaningful tool call,
+		// show the live activity summary in place of the title, then flip back
+		// when it finishes. Generic activity (e.g. "Working…") is ignored so the
+		// title stays put; the spinner and title shimmer already signal progress.
+		template.elementDisposables.add(autorun(reader => {
+			const sessionStatus = element.status.read(reader);
+			const description = element.description.read(reader);
+			const activityText = sessionStatus === SessionStatus.InProgress
+				? getMeaningfulActivity(description)
+				: undefined;
+			template.activity.textContent = activityText ?? '';
+			template.container.classList.toggle('show-activity', !!activityText);
 		}));
 
 		// Custom agents window: the row shows only the title plus the status

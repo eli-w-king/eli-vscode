@@ -250,6 +250,44 @@
 		color: var(--vscode-strongForeground);
 	}
 
+	/* In-place title/activity flip. The flip container occupies the title's
+	 * slot; the two layers are stacked and cross-slide so the row height never
+	 * changes when the live tool-call activity comes and goes. */
+	.session-title-flip {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		height: 17px;
+		overflow: hidden;
+	}
+
+	.session-title-flip > .session-title,
+	.session-title-flip > .session-activity {
+		position: absolute;
+		inset: 0;
+		flex: none;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.session-activity {
+		font-size: var(--vscode-agents-fontSize-body1, 13px);
+		color: var(--vscode-foreground);
+		transform: translateY(70%);
+		opacity: 0;
+	}
+
+	&.show-activity .session-title-flip > .session-title {
+		transform: translateY(-70%);
+		opacity: 0;
+	}
+
+	&.show-activity .session-title-flip > .session-activity {
+		transform: translateY(0);
+		opacity: 1;
+	}
+
 	.session-time {
 		display: flex;
 		align-items: center;
@@ -459,7 +497,8 @@
 
 @supports ((background-clip: text) or (-webkit-background-clip: text)) {
 	@media not (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title,
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-activity {
 			background: linear-gradient(
 				90deg,
 				var(--vscode-strongForeground) 0%,
@@ -476,7 +515,9 @@
 		}
 
 		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
-		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-activity,
+		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
+		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-activity {
 			background-image: linear-gradient(
 				90deg,
 				var(--vscode-strongForeground) 0%,
@@ -488,6 +529,16 @@
 		}
 	}
 }
+
+/* The flip animation is motion; gate it on reduced-motion so the title/activity
+ * swap is instant for users who opt out. */
+@media not (prefers-reduced-motion: reduce) {
+	.session-item .session-title-flip > .session-title,
+	.session-item .session-title-flip > .session-activity {
+		transition: transform 220ms ease, opacity 220ms ease;
+	}
+}
+
 
 @keyframes session-title-shimmer {
 	0% {
@@ -573,7 +624,12 @@
 		padding-bottom: 4px;
 	}
 
-	.session-item .session-title {
+	.session-item .session-title-flip {
+		height: 20px;
+	}
+
+	.session-item .session-title,
+	.session-item .session-activity {
 		font-size: 15px;
 		line-height: 20px;
 	}
