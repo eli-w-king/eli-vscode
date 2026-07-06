@@ -24,7 +24,6 @@ import { IChatSessionsService, localChatSessionType } from '../../../../workbenc
 import { IChat } from '../../../services/sessions/common/session.js';
 import { ISharedChatInput } from '../../../services/chatView/browser/chatViewFactory.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
-import { getRandomChatInputPlaceholder } from './newChatInput.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground } from '../../../common/theme.js';
 
 /**
@@ -55,6 +54,9 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
 	private _historyKey: string | undefined;
+
+	/** The active session's title, shown as the input's placeholder. */
+	private _placeholder: string | undefined;
 
 	private _lastWidth = 0;
 
@@ -89,7 +91,6 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 				supportsChangingModes: true,
 				inputEditorMinLines: 1,
 				isSessionsWindow: true,
-				inputPlaceholderOverride: getRandomChatInputPlaceholder(),
 			},
 			{
 				listForeground: activeSessionViewForeground,
@@ -123,9 +124,10 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 		return this._widget.contentHeight;
 	}
 
-	setChat(chat: IChat | undefined, historyKey?: string): void {
+	setChat(chat: IChat | undefined, historyKey?: string, title?: string): void {
 		if (!chat) {
 			this._currentChatResource = undefined;
+			this._placeholder = undefined;
 			this._loadCts.clear();
 			// Flush the draft back to the model (setModel(undefined)) before
 			// releasing our model reference, so the draft is never lost.
@@ -137,8 +139,12 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 		const resource = chat.resource;
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
+		this._placeholder = title;
 
 		if (isEqual(this._currentChatResource, resource)) {
+			// Same session still bound: the title may have changed (e.g. on
+			// auto-title), so refresh the placeholder without reloading.
+			this._applyPlaceholder();
 			return;
 		}
 		this._currentChatResource = resource;
@@ -155,6 +161,7 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
+			this._applyPlaceholder();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[SharedChatInputView] Failed to load chat model', err);
@@ -163,6 +170,14 @@ export class SharedChatInputView extends Disposable implements ISharedChatInput 
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	/** Applies the active session's title as the input placeholder, if loaded. */
+	private _applyPlaceholder(): void {
+		const placeholder = this._placeholder?.trim();
+		if (placeholder) {
+			this._widget.setInputPlaceholder(placeholder);
+		}
 	}
 
 	private _applyHistoryKey(): void {

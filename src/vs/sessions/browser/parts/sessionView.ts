@@ -230,7 +230,8 @@ export class SessionView extends Disposable implements ISerializableView {
 			}
 
 			if (session && activeChat) {
-				view.setChat(activeChat, session.sessionId);
+				const title = activeChat.title.read(reader);
+				view.setChat(activeChat, session.sessionId, title);
 			}
 
 			// Drive the in-progress "comet" around the whole session card. The

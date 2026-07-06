@@ -386,7 +386,7 @@ export class SessionsPart extends Part {
 		if (!sharedInput || !this._sharedInputDock) {
 			return;
 		}
-		sharedInput.setChat(chat, active.sessionId);
+		sharedInput.setChat(chat, active.sessionId, title);
 		this._updateSharedInputLabel(title);
 		this._sharedInputVisible = true;
 		this._sharedInputDock.classList.toggle('hidden', false);

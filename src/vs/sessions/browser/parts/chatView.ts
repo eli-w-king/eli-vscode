@@ -72,9 +72,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
-	 * this to load the chat model and feed it into the widget.
+	 * this to load the chat model and feed it into the widget. When provided,
+	 * `title` is used as the input's placeholder so an active session's empty
+	 * input names the session it sends to.
 	 */
-	setChat(_chat: IChat, _historyKey?: string): void {
+	setChat(_chat: IChat, _historyKey?: string, _title?: string): void {
 		// no-op by default
 	}
 

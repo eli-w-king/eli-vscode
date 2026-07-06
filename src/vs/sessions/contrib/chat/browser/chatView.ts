@@ -107,6 +107,9 @@ export class ChatView extends AbstractChatView {
 	private _currentChatResource: URI | undefined;
 	private _historyKey: string | undefined;
 
+	/** The active session's title, shown as the input's placeholder. */
+	private _placeholder: string | undefined;
+
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
 
@@ -184,13 +187,17 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
-	override setChat(chat: IChat, historyKey?: string): void {
+	override setChat(chat: IChat, historyKey?: string, title?: string): void {
 		const resource = chat.resource;
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
+		this._placeholder = title;
 
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
+			// Same session still bound: the title may have changed (e.g. on
+			// auto-title), so refresh the placeholder without reloading.
+			this._applyPlaceholder();
 			return;
 		}
 
@@ -216,6 +223,7 @@ export class ChatView extends AbstractChatView {
 				this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			}
 			this._widget.setModel(ref.object);
+			this._applyPlaceholder();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -235,6 +243,18 @@ export class ChatView extends AbstractChatView {
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
+	}
+
+	/** Applies the active session's title as the input placeholder, if loaded. */
+	private _applyPlaceholder(): void {
+		if (this.isTranscriptOnly) {
+			// Transcript-only views have no input; the shared input owns the placeholder.
+			return;
+		}
+		const placeholder = this._placeholder?.trim();
+		if (placeholder) {
+			this._widget.setInputPlaceholder(placeholder);
+		}
 	}
 
 	private _applyHistoryKey(): void {

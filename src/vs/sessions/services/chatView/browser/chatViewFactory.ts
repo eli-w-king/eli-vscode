@@ -33,8 +33,10 @@ export interface ISharedChatInput extends IDisposable {
 	/**
 	 * Binds the input to the given chat (the active session's active chat).
 	 * Pass `undefined` to unbind and flush any draft back to the previous model.
+	 * When provided, `title` is used as the input's placeholder text so the
+	 * empty input names the session it sends to.
 	 */
-	setChat(chat: IChat | undefined, historyKey?: string): void;
+	setChat(chat: IChat | undefined, historyKey?: string, title?: string): void;
 
 	/** Lays out the input at the given width and returns its resulting height. */
 	layout(width: number): number;
