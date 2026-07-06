@@ -203,13 +203,8 @@
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
+.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
-}
-
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	padding-left: 4px;
 }
 
 /* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)

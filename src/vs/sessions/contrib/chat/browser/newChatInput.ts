@@ -30,7 +30,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -419,7 +418,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				e.stopPropagation();
 				this._send(true);
 			}
-			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
+			// Cmd+/ / Ctrl+/ — open the context picker
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -473,27 +472,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 	}
 
-	private _createAttachButton(container: HTMLElement): void {
-		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
-		const attachButtonLabel = localize('addContext', "Add Context...");
-		attachButton.tabIndex = 0;
-		attachButton.role = 'button';
-		attachButton.ariaLabel = attachButtonLabel;
-		this._register(this.hoverService.setupDelayedHover(attachButton, {
-			content: attachButtonLabel,
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true }
-		}));
-		dom.append(attachButton, renderIcon(Codicon.add));
-		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
-			this._contextAttachments.showPicker(this.options.getContextFolderUri());
-		}));
-	}
-
 	private _createInputToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
-
-		this._createAttachButton(toolbar);
 
 		// Session config pickers (mode, model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
