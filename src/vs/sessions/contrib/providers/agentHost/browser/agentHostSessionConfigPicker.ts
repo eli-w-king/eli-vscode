@@ -13,7 +13,7 @@ import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/act
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -26,7 +26,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -40,13 +40,15 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
-import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
+import { PermissionPicker, ApprovalsSegmentedControl, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { HighLowModelPicker, HighLowModelPickerActionViewItem } from '../../../chat/browser/highLowModelPicker.js';
-import { OpenModelPickerAction } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { OpenModelPickerAction, OpenPermissionPickerAction } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -57,6 +59,42 @@ import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
+
+/**
+ * Permission-picker delegate for a RUNNING agent-host session's segmented
+ * approvals control. Unlike {@link AgentHostPermissionPickerDelegate} (which
+ * reads/writes the provider's `autoApprove` session config and hides itself
+ * when that schema is not well-known), this delegate drives the running chat
+ * widget's own {@link ChatPermissionLevel} state — the exact state the built-in
+ * permission picker uses and that the widget reads at send time — via the
+ * public {@link ChatInputPart.setPermissionLevel} / `currentPermissionLevelObs`.
+ * It is therefore always applicable and offers the default three levels
+ * (Manual / Ask Questions / Autopilot), matching the new-session composer.
+ */
+class RunningSessionPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
+
+	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
+	readonly defaultSettingKey = ChatConfiguration.DefaultPermissionLevel;
+
+	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+	) {
+		super();
+		this.currentPermissionLevel = derived(this, reader => this._input(reader)?.currentPermissionLevelObs.read(reader));
+	}
+
+	private _input(reader: IReader | undefined): ChatInputPart | undefined {
+		const session = reader ? this._session.read(reader) : this._session.get();
+		const chat = reader ? session?.activeChat.read(reader) : session?.activeChat.get();
+		const widget = chat ? this._chatWidgetService.getWidgetBySessionResource(chat.resource) : undefined;
+		return widget?.input;
+	}
+
+	setPermissionLevel(level: ChatPermissionLevel): void {
+		this._input(undefined)?.setPermissionLevel(level);
+	}
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -814,6 +852,21 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
+		));
+		// The running chat widget renders the built-in permission picker
+		// (OpenPermissionPickerAction, "Default Approvals") in its secondary
+		// toolbar. Replace it with the inline Manual | Ask Questions | Autopilot
+		// segmented control, driven by the widget's own ChatPermissionLevel
+		// state, so the active-session bar matches the new-session composer.
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			OpenPermissionPickerAction.ID,
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const delegate = scopedInstantiationService.createInstance(RunningSessionPermissionPickerDelegate, session);
+				const picker = scopedInstantiationService.createInstance(ApprovalsSegmentedControl, delegate);
+				return new PickerActionViewItem(picker, delegate);
+			},
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInputSecondary,
