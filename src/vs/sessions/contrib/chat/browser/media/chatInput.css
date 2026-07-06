@@ -309,6 +309,30 @@
 	transition: none;
 }
 
+/* Active-session approvals dropdown: collapse to its state-encoding icon
+ * (shield / question / rocket) to match the composer's iconified controls.
+ * The current level is conveyed by the icon; the text label is revealed on
+ * hover or keyboard focus so the choice is never hidden. Scoped to the
+ * permission picker slot so the mode + model pickers (which carry identity)
+ * and the branch/folder chips (which carry context) keep their labels. */
+.sessions-chat-permission-picker .action-label .sessions-chat-dropdown-label {
+	max-width: 0;
+	overflow: hidden;
+	opacity: 0;
+	margin-left: 0;
+	transition: max-width 120ms ease-out, opacity 120ms ease-out, margin-left 120ms ease-out;
+}
+
+.sessions-chat-permission-picker .action-label:hover .sessions-chat-dropdown-label,
+.sessions-chat-permission-picker .action-label:focus-visible .sessions-chat-dropdown-label {
+	max-width: 160px;
+	opacity: 1;
+}
+
+.monaco-reduce-motion .sessions-chat-permission-picker .action-label .sessions-chat-dropdown-label {
+	transition: none;
+}
+
 /* Send button - wraps a Button widget */
 .sessions-chat-send-button {
 	display: flex;
