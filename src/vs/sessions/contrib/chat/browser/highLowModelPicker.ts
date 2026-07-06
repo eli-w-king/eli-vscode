@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -58,8 +59,8 @@ export class HighLowModelPicker extends Disposable {
 
 		const control = this._renderDisposables.add(new SessionsSegmentedControl<HighLowMode>(
 			[
-				{ value: 'low', label: this._label('low') },
-				{ value: 'high', label: this._label('high') },
+				{ value: 'low', label: this._label('low'), icon: Codicon.zap, title: this._segmentTitle('low') },
+				{ value: 'high', label: this._label('high'), icon: Codicon.sparkle, title: this._segmentTitle('high') },
 			],
 			mode => this._setMode(mode),
 			localize('highLowModel.ariaLabel', "Model mode"),
@@ -152,6 +153,18 @@ export class HighLowModelPicker extends Disposable {
 
 	private _label(mode: HighLowMode): string {
 		return mode === 'high' ? localize('highLowModel.high', "High") : localize('highLowModel.low', "Low");
+	}
+
+	private _segmentTitle(mode: HighLowMode): string {
+		const model = this._resolvedModelName(mode);
+		if (mode === 'high') {
+			return model
+				? localize('highLowModel.highTitleModel', "High — most capable model ({0})", model)
+				: localize('highLowModel.highTitle', "High — most capable model");
+		}
+		return model
+			? localize('highLowModel.lowTitleModel', "Low — faster, lighter model ({0})", model)
+			: localize('highLowModel.lowTitle', "Low — faster, lighter model");
 	}
 
 	private _buildHover(): string {

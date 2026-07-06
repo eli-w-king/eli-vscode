@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export interface ISegmentOption<T extends string> {
@@ -13,6 +14,11 @@ export interface ISegmentOption<T extends string> {
 	readonly ariaLabel?: string;
 	/** Optional tooltip shown on hover. */
 	readonly title?: string;
+	/**
+	 * Optional icon. When set, inactive segments collapse to icon-only; the
+	 * active (and hovered) segment additionally reveals its {@link label}.
+	 */
+	readonly icon?: ThemeIcon;
 }
 
 /**
@@ -52,7 +58,12 @@ export class SessionsSegmentedControl<T extends string> extends Disposable {
 			const button = dom.append(group, dom.$('button.sessions-chat-segment')) as HTMLButtonElement;
 			button.type = 'button';
 			button.setAttribute('role', 'radio');
-			button.textContent = option.label;
+			if (option.icon) {
+				button.classList.add('has-icon');
+				dom.append(button, dom.$(`span.sessions-chat-segment-icon${ThemeIcon.asCSSSelector(option.icon)}`));
+			}
+			const label = dom.append(button, dom.$('span.sessions-chat-segment-label'));
+			label.textContent = option.label;
 			button.setAttribute('aria-label', option.ariaLabel ?? option.label);
 			if (option.title) {
 				button.title = option.title;

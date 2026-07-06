@@ -418,7 +418,7 @@ export class ApprovalsSegmentedControl extends Disposable {
 		const control = this._renderDisposables.add(new SessionsSegmentedControl<ChatPermissionLevel>(
 			levels.map(level => {
 				const meta = getPermissionLevelMeta(level);
-				return { value: level, label: this._segmentLabel(level), ariaLabel: this._segmentLabel(level), title: this._getPermissionLevelHover(level, meta) };
+				return { value: level, label: this._segmentLabel(level), ariaLabel: this._segmentLabel(level), title: this._getPermissionLevelHover(level, meta), icon: meta.icon };
 			}),
 			level => this._selectLevel(level),
 			localize('approvals.ariaLabel', "Approvals"),
