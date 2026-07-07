@@ -1,0 +1,71 @@
+name: Sync fork with upstream
+
+# Keeps this fork's `main` branch up to date with microsoft/vscode:main.
+#
+# NOTE: Scheduled workflows only run from the repository's default branch, so
+# this file must be merged into `main` before the daily schedule takes effect.
+# You can always trigger it manually from the Actions tab (workflow_dispatch).
+
+on:
+  schedule:
+    # Every day at 08:00 UTC. GitHub may delay scheduled runs under load.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync from upstream'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync ${{ github.event.inputs.branch || 'main' }} from upstream
+    runs-on: ubuntu-latest
+    # Only run on the fork itself, never on microsoft/vscode.
+    if: github.repository != 'microsoft/vscode'
+    steps:
+      - name: Sync fork branch with upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.inputs.branch || 'main' }}
+        run: |
+          set -euo pipefail
+
+          echo "Syncing '$BRANCH' in ${GITHUB_REPOSITORY} from upstream..."
+
+          # Uses the same mechanism as the "Sync fork" button in the GitHub UI.
+          # Only fast-forwards; if the branch has diverged it reports and exits 0
+          # so the scheduled run is not marked as failed for expected divergence.
+          http_status=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/merge-upstream" \
+            -f "branch=${BRANCH}" \
+            --silent \
+            2> merge-upstream.err && echo "success" || echo "failed")
+
+          if [ "$http_status" = "success" ]; then
+            echo "::notice::'$BRANCH' successfully synced with upstream."
+            exit 0
+          fi
+
+          err_body="$(cat merge-upstream.err || true)"
+          echo "$err_body"
+
+          # A 409 means the branch has diverged and can't be fast-forwarded.
+          # That's an expected state for a fork with its own commits on main,
+          # so surface it as a warning rather than a hard failure.
+          if echo "$err_body" | grep -qiE 'conflict|409|diverg'; then
+            echo "::warning::'$BRANCH' has diverged from upstream and could not be fast-forwarded. A manual merge/rebase is required."
+            exit 0
+          fi
+
+          echo "::error::Failed to sync '$BRANCH' with upstream."
+          exit 1
