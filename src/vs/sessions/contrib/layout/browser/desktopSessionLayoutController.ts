@@ -12,6 +12,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import product from '../../../../platform/product/common/product.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../changes/common/changes.js';
@@ -189,6 +190,7 @@ export class LayoutController extends BaseLayoutController {
 		}));
 
 		this._registerChangesAutoReveal();
+		this._registerPreviewChangesReveal();
 
 		this._registerResponsiveSidebar();
 		this._registerAuxiliaryBarPartVisibility();
@@ -351,6 +353,54 @@ export class LayoutController extends BaseLayoutController {
 		const savedState = this._viewStateBySession.get(changesSessionResource);
 		if (savedState) {
 			// [D8] Already open, or an explicit aux-bar hide (not a D9 collapse).
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				return;
+			}
+			if (!savedState.auxiliaryBarVisible && !savedState.auxiliaryBarHiddenByCollapse) {
+				return;
+			}
+		}
+		void this._viewsService.openView(CHANGES_VIEW_ID, false);
+	}
+
+	/**
+	 * [D-preview] Keep agent work auditable: when a browser preview becomes the
+	 * active editor in a created session, reveal the Changes view alongside it so
+	 * the developer can verify the preview against the agent's file changes/diff
+	 * without switching tabs. Grounded in browser-preview user research (the
+	 * strongest cross-study finding: file changes ranked top-2 by 9/10
+	 * participants). Only ever reveals; hiding stays with the [D1]/[D2]/[D3]
+	 * per-session state so a user who closes the panel keeps it closed.
+	 */
+	protected _registerPreviewChangesReveal(): void {
+		this._register(this._editorService.onDidActiveEditorChange(() => this._revealChangesViewForPreview()));
+	}
+
+	private _revealChangesViewForPreview(): void {
+		// A side-pane toggle restores exactly the remembered parts; don't let a
+		// browser preview becoming active force the Changes view open (D9).
+		if (this._togglingSidePane) {
+			return;
+		}
+		// Only react to the Agents-window browser preview being the active editor.
+		if (this._editorService.activeEditor?.typeId !== BrowserEditorInput.EDITOR_ID) {
+			return;
+		}
+		if (this.multipleSessionsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		// Only for real (created) sessions that have changes to show.
+		if (!activeSession || !activeSession.isCreated.get()) {
+			return;
+		}
+		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+		// Respect an explicit per-session hide: if the user closed the side panel
+		// for this session (and it was not a D9 collapse), leave it closed.
+		const savedState = this._viewStateBySession.get(activeSession.resource);
+		if (savedState) {
 			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				return;
 			}
