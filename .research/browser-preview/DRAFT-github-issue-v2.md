@@ -6,6 +6,10 @@ We ran two moderated UserTesting studies on the Agents window browser preview, v
 
 The recommendation: when a browser preview is open in a session, keep the **Changes (diff)** panel and the **active agent chat** visible right next to it, and (as a fast follow) let people click an element in the preview to jump to the file that renders it. The demo above shows that layout running: chat on the left, the live preview in the middle, and the changed files on the right, all at once.
 
+## Demo
+
+<!-- Drag new-ui-demo.mp4 here so it renders as a native inline player. -->
+
 ## What we heard
 
 Quotes are verbatim from participants (P##). Telemetry is from VS Code Stable desktop; caveats are at the end.
@@ -60,6 +64,6 @@ At five participants per variant this is directional, not statistical, but the d
 
 ## Method and caveats
 
-- **Studies:** "vscode Agents - Browser Preview A (decoupled)" and "B (preview)", five completed sessions each, think-out-loud, screen and audio. All participants screened as engineers who code daily and use AI tools.
+- **Studies:** "vscode Agents - Browser Preview A (decoupled)" ([UserTesting](https://app.usertesting.com/workspaces/408945/test/7322b572-cfaa-435e-aab9-4f0ca5dd21c8)) and "B (preview)" ([UserTesting](https://app.usertesting.com/workspaces/408945/test/26444999-4d95-4c05-98d2-02493e54a63d)), five completed sessions each, think-out-loud, screen and audio. All participants screened as engineers who code daily and use AI tools.
 - **Small sample:** 10 total, so findings are directional. Transcripts include speech-to-text artifacts.
 - **Telemetry:** VS Code Stable desktop. Raw events are retained about 45 days, so adoption metrics use a 42-day window and heavy joins use 7 days. `workbenchactionexecuted` only fires for keyboard and palette actions, so the context-switch and diff-open counts are lower bounds (mouse clicks on tabs and files aren't instrumented). There's no telemetry for the prototype itself; the quantitative figures are adjacent shipping behavior.
