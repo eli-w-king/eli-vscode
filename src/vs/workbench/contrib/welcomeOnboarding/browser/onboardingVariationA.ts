@@ -83,7 +83,7 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
+ * 1. Sign In — sessions-style sign-in hero with GitHub Copilot and Google options, plus bring-your-own-key
  * 2. Personalize — Theme selection grid + keymap pills
  * 3. Agent Sessions — Feature cards showcasing AI capabilities
  */
