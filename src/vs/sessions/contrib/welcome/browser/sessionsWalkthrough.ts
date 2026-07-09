@@ -7,6 +7,8 @@ import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -338,12 +340,17 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		keyInput.spellcheck = false;
 		keyInput.placeholder = localize('walkthrough.byok.apiKeyPlaceholder', "Paste your API key");
 
-		// Actions: back to sign-in, continue with key
+		// Actions: back to sign-in, continue with key. Use the real VS Code Button
+		// widget so the primary/secondary styling matches the rest of the product.
 		const actions = append(form, $('.sessions-walkthrough-byok-actions'));
-		const backBtn = append(actions, $('button.sessions-walkthrough-byok-back')) as HTMLButtonElement;
-		append(backBtn, $('span', undefined, localize('walkthrough.byok.back', "Back")));
-		const continueBtn = append(actions, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-byok-continue')) as HTMLButtonElement;
-		append(continueBtn, $('span', undefined, localize('walkthrough.byok.continue', "Continue")));
+		const backButton = stepDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		backButton.label = localize('walkthrough.byok.back', "Back");
+		backButton.element.classList.add('sessions-walkthrough-byok-back');
+		const continueButton = stepDisposables.add(new Button(actions, defaultButtonStyles));
+		continueButton.label = localize('walkthrough.byok.continue', "Continue");
+		continueButton.element.classList.add('sessions-walkthrough-byok-continue');
+		const backBtn = backButton.element;
+		const continueBtn = continueButton.element;
 
 		// Error feedback
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
@@ -362,10 +369,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		stepDisposables.add(addDisposableListener(backBtn, EventType.CLICK, () => this._renderSignIn()));
+		stepDisposables.add(backButton.onDidClick(() => this._renderSignIn()));
 
-		const submit = () => this._runByok(providerSelect, keyInput, [backBtn, continueBtn], errorContainer, titleEl, subtitleEl, form);
-		stepDisposables.add(addDisposableListener(continueBtn, EventType.CLICK, submit));
+		const submit = () => this._runByok(providerSelect, keyInput, [backButton, continueButton], errorContainer, titleEl, subtitleEl, form);
+		stepDisposables.add(continueButton.onDidClick(() => submit()));
 		stepDisposables.add(addDisposableListener(keyInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Enter') {
 				e.preventDefault();
@@ -374,7 +381,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}));
 	}
 
-	private async _runByok(providerSelect: HTMLSelectElement, keyInput: HTMLInputElement, controls: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, form: HTMLElement): Promise<void> {
+	private async _runByok(providerSelect: HTMLSelectElement, keyInput: HTMLInputElement, controls: Button[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, form: HTMLElement): Promise<void> {
 		const apiKey = keyInput.value.trim();
 		if (!apiKey) {
 			error.textContent = localize('walkthrough.byok.missingKey', "Enter an API key to continue.");
@@ -386,8 +393,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const providerId = providerSelect.value;
 
 		// Disable inputs while configuring
-		for (const btn of controls) {
-			btn.disabled = true;
+		for (const button of controls) {
+			button.enabled = false;
 		}
 		providerSelect.disabled = true;
 		keyInput.disabled = true;

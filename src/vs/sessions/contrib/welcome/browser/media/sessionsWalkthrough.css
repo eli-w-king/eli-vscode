@@ -330,42 +330,21 @@
 	margin-top: 4px;
 }
 
-/* Primary "Continue" uses the VS Code button treatment. */
+/*
+ * Back/Continue are real VS Code Button widgets (.monaco-button), so they carry
+ * native primary/secondary theming. We only own their layout within the row.
+ */
+.sessions-walkthrough-byok-actions > .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
 .sessions-walkthrough-byok-continue {
 	flex: 1 1 auto;
-	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border-radius: 2px;
 }
 
-.sessions-walkthrough-byok-continue:hover {
-	background: var(--vscode-button-hoverBackground);
-	border-color: var(--vscode-button-border, transparent);
-}
-
-/* Secondary "Back" uses the VS Code secondary button treatment. */
 .sessions-walkthrough-byok-back {
 	flex: 0 0 auto;
-	padding: 6px 14px;
-	border-radius: 2px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	font-size: 13px;
-	font-weight: 400;
-	font-family: inherit;
-	cursor: pointer;
-}
-
-.sessions-walkthrough-byok-back:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.sessions-walkthrough-byok-back:disabled,
-.sessions-walkthrough-byok-continue:disabled {
-	opacity: 0.5;
-	cursor: default;
 }
 
 /* ---- Hero layout (icon left, text right) ---- */

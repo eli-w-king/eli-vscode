@@ -352,11 +352,9 @@ suite('SessionsWelcomeContribution', () => {
 				const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
 				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
 				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
-				const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
 				const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-enterprise');
 				assert.ok(githubButton);
 				assert.ok(googleButton);
-				assert.ok(appleButton);
 				assert.ok(enterpriseButton);
 
 				const button = container.querySelector<HTMLButtonElement>(selector);
@@ -373,7 +371,6 @@ suite('SessionsWelcomeContribution', () => {
 				container.textContent = '';
 			};
 
-			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-apple', ChatSetupStrategy.SetupWithAppleProvider);
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-google', ChatSetupStrategy.SetupWithGoogleProvider);
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-enterprise', ChatSetupStrategy.SetupWithEnterpriseProvider);
 		} finally {

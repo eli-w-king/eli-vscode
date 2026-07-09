@@ -19,6 +19,8 @@ import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -477,15 +479,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._handleSignIn('google');
 		}));
 
-		const appleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'apple', localize('onboarding.signIn.apple', "Continue with Apple"), {
-			iconOnly: true,
-			label: localize('onboarding.signIn.apple', "Continue with Apple")
-		}));
-		this.stepDisposables.add(addDisposableListener(appleBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'apple');
-			this._handleSignIn('apple');
-		}));
-
 		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
 			textOnly: true,
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
@@ -493,6 +486,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
 			this._logAction('signIn', undefined, 'github-enterprise');
 			this._handleEnterpriseSignIn();
+		}));
+
+		// BYOK: single secondary path beneath the providers, styled as a VS Code
+		// text link so it reads as an alternative to signing in rather than a
+		// competing primary action.
+		const byokLink = this._registerStepFocusable(append(contentMain, $<HTMLButtonElement>('button.onboarding-a-signin-byok-link')));
+		byokLink.type = 'button';
+		byokLink.textContent = localize('onboarding.signIn.byok', "Bring your own key instead");
+		this.stepDisposables.add(addDisposableListener(byokLink, EventType.CLICK, () => {
+			this._logAction('byok');
+			this._handleByok();
 		}));
 
 		const footer = append(wrapper, $('.onboarding-a-signin-footer'));
@@ -514,7 +518,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
+	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
 		const isCompact = options?.iconOnly || options?.textOnly;
 		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
 		btn.type = 'button';
@@ -571,6 +575,128 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				message: localize('onboarding.signIn.error', "Sign-in failed. You can try again later from the Accounts menu."),
 			});
 		}
+	}
+
+	private _handleByok(): void {
+		// Render an in-onboarding BYOK panel (provider + API key) in place of the
+		// sign-in hero, mirroring the Agents-window walkthrough so the flow is
+		// self-contained rather than depending on the model-management surface.
+		if (!this.contentEl) {
+			return;
+		}
+		this.stepDisposables.clear();
+		this.stepFocusableElements.length = 0;
+		clearNode(this.contentEl);
+		this._renderByokStep(this.contentEl);
+	}
+
+	private _renderByokStep(container: HTMLElement): void {
+		const byokProviders: readonly { readonly id: string; readonly label: string }[] = [
+			{ id: 'anthropic', label: 'Anthropic' },
+			{ id: 'openai', label: 'OpenAI' },
+			{ id: 'gemini', label: 'Google Gemini' },
+			{ id: 'azure', label: 'Azure OpenAI' },
+			{ id: 'openrouter', label: 'OpenRouter' },
+			{ id: 'ollama', label: 'Ollama' },
+		];
+
+		const wrapper = append(container, $('.onboarding-a-signin'));
+		const brand = append(wrapper, $('.onboarding-a-signin-brand'));
+		const brandIcon = append(brand, $('span.onboarding-a-signin-brand-icon'));
+		brandIcon.setAttribute('role', 'img');
+		brandIcon.setAttribute('aria-label', product.nameLong);
+
+		const content = append(wrapper, $('.onboarding-a-signin-content'));
+		const contentMain = append(content, $('.onboarding-a-signin-content-main'));
+		const title = append(contentMain, $('h2.onboarding-a-signin-title'));
+		title.textContent = localize('onboarding.byok.title', "Bring your own key");
+		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
+		subtitle.textContent = localize('onboarding.byok.subtitle', "Connect your own model provider with an API key to get started.");
+
+		const form = append(contentMain, $('.onboarding-a-byok-form'));
+
+		// Provider selection
+		const providerField = append(form, $('.onboarding-a-byok-field'));
+		const providerLabel = append(providerField, $('label.onboarding-a-byok-label', undefined, localize('onboarding.byok.provider', "Provider"))) as HTMLLabelElement;
+		const providerSelect = append(providerField, $('select.onboarding-a-byok-select')) as HTMLSelectElement;
+		providerLabel.htmlFor = 'onboarding-byok-provider';
+		providerSelect.id = 'onboarding-byok-provider';
+		for (const provider of byokProviders) {
+			const option = append(providerSelect, $('option')) as HTMLOptionElement;
+			option.value = provider.id;
+			option.textContent = provider.label;
+		}
+		this._registerStepFocusable(providerSelect);
+
+		// API key entry
+		const keyField = append(form, $('.onboarding-a-byok-field'));
+		const keyLabel = append(keyField, $('label.onboarding-a-byok-label', undefined, localize('onboarding.byok.apiKey', "API key"))) as HTMLLabelElement;
+		const keyInput = append(keyField, $('input.onboarding-a-byok-input')) as HTMLInputElement;
+		keyLabel.htmlFor = 'onboarding-byok-key';
+		keyInput.id = 'onboarding-byok-key';
+		keyInput.type = 'password';
+		keyInput.autocomplete = 'off';
+		keyInput.spellcheck = false;
+		keyInput.placeholder = localize('onboarding.byok.apiKeyPlaceholder', "Paste your API key");
+		this._registerStepFocusable(keyInput);
+
+		const error = append(form, $('p.onboarding-a-byok-error'));
+		error.style.display = 'none';
+
+		// Actions: Back returns to the sign-in hero, Continue validates the key.
+		const actions = append(form, $('.onboarding-a-byok-actions'));
+		const backButton = this.stepDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		backButton.label = localize('onboarding.byok.back', "Back");
+		backButton.element.classList.add('onboarding-a-byok-back');
+		this._registerStepFocusable(backButton.element);
+		const continueButton = this.stepDisposables.add(new Button(actions, defaultButtonStyles));
+		continueButton.label = localize('onboarding.byok.continue', "Continue");
+		continueButton.element.classList.add('onboarding-a-byok-continue');
+		this._registerStepFocusable(continueButton.element);
+
+		this.stepDisposables.add(backButton.onDidClick(() => {
+			if (!this.contentEl) {
+				return;
+			}
+			this.stepDisposables.clear();
+			this.stepFocusableElements.length = 0;
+			clearNode(this.contentEl);
+			this._renderSignInStep(this.contentEl);
+		}));
+
+		const submit = () => {
+			const apiKey = keyInput.value.trim();
+			if (!apiKey) {
+				error.textContent = localize('onboarding.byok.missingKey', "Enter an API key to continue.");
+				error.style.display = '';
+				keyInput.focus();
+				return;
+			}
+			this._logAction('byokConnect', undefined, providerSelect.value);
+			backButton.enabled = false;
+			continueButton.enabled = false;
+			providerSelect.disabled = true;
+			keyInput.disabled = true;
+			error.style.display = 'none';
+			title.textContent = localize('onboarding.byok.connecting', "Connecting\u2026");
+			subtitle.textContent = localize('onboarding.byok.connectingSubtitle', "Validating your API key and setting up your models.");
+			form.remove();
+			this._nextStep();
+		};
+		this.stepDisposables.add(continueButton.onDidClick(() => submit()));
+		this.stepDisposables.add(addDisposableListener(keyInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				submit();
+			}
+		}));
+
+		const win = getActiveWindow();
+		win.setTimeout(() => {
+			if (keyInput.isConnected) {
+				keyInput.focus();
+			}
+		}, 0);
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {

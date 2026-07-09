@@ -336,6 +336,99 @@
 	flex-wrap: nowrap;
 }
 
+.onboarding-a-signin-byok-link {
+	align-self: flex-start;
+	margin-top: 12px;
+	padding: 2px 0;
+	border: none;
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font-size: 13px;
+	font-family: inherit;
+	cursor: pointer;
+}
+
+.onboarding-a-signin-byok-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.onboarding-a-signin-byok-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* ---- BYOK in-onboarding form (provider + API key) ---- */
+
+.onboarding-a-byok-form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: min(100%, 400px);
+	margin-top: 16px;
+}
+
+.onboarding-a-byok-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.onboarding-a-byok-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-byok-select,
+.onboarding-a-byok-input {
+	padding: 6px 8px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	font-family: inherit;
+}
+
+.onboarding-a-byok-select:focus,
+.onboarding-a-byok-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-a-byok-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.onboarding-a-byok-error {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+}
+
+.onboarding-a-byok-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.onboarding-a-byok-actions > .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
+.onboarding-a-byok-continue {
+	flex: 1 1 auto;
+}
+
+.onboarding-a-byok-back {
+	flex: 0 0 auto;
+}
+
 .onboarding-a-signin-footer {
 	position: absolute;
 	bottom: 0;
@@ -405,24 +498,23 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 10px;
+	gap: 8px;
 	min-width: 0;
-	padding: 0 16px;
-	height: 40px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
-	background: var(--vscode-editor-background);
-	color: var(--vscode-editor-foreground);
+	padding: 0 14px;
+	height: 36px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
 	cursor: pointer;
 	font-size: 13px;
-	font-weight: 600;
+	font-weight: 400;
 	font-family: inherit;
-	transition: background 0.12s ease, border-color 0.12s ease;
+	transition: background 0.12s ease;
 }
 
 .onboarding-a-signin-btn:hover {
-	background: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .onboarding-a-signin-btn:focus-visible {
@@ -468,14 +560,6 @@
 	background-image: url('../../../chat/browser/chatSetup/media/google.svg');
 }
 
-.monaco-workbench.hc-light .onboarding-a-provider-mark.apple,
-.monaco-workbench.vs .onboarding-a-provider-mark.apple {
-	background-image: url('../../../chat/browser/chatSetup/media/apple-light.svg');
-}
-
-.onboarding-a-provider-mark.apple {
-	background-image: url('../../../chat/browser/chatSetup/media/apple-dark.svg');
-}
 
 /* Personalize step */
 .onboarding-a-personalize {
@@ -877,28 +961,27 @@
 }
 
 .onboarding-a-signin-icon-btn {
-	min-width: 40px;
-	height: 40px;
+	min-width: 36px;
+	height: 36px;
 	padding: 0 10px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
-	background: var(--vscode-editor-background);
-	color: var(--vscode-editor-foreground);
+	border-radius: 2px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: background 0.12s ease, border-color 0.12s ease;
+	transition: background 0.12s ease;
 	outline: none;
 	font-size: 13px;
-	font-weight: 600;
+	font-weight: 400;
 	font-family: inherit;
 	white-space: nowrap;
 }
 
 .onboarding-a-signin-icon-btn:hover {
-	background: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .onboarding-a-signin-icon-btn:focus-visible {
