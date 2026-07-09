@@ -34,7 +34,7 @@ const fallbackChatAgentLinks = {
 
 /**
  * Sign-in onboarding overlay:
- *   - Sign in via GitHub / Google / Apple / Enterprise
+ *   - Sign in via GitHub / Google / Enterprise
  *   - Or bring your own key (BYOK): connect a model provider with an API key
  */
 
@@ -156,24 +156,20 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
 			googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
 
-			const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
-			appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
-			appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
-
 			const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE';
 			const enterpriseBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact.provider-enterprise')) as HTMLButtonElement;
 			enterpriseBtn.setAttribute('aria-label', localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName));
 			enterpriseBtn.title = localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName);
 			append(enterpriseBtn, $('span.sessions-walkthrough-provider-label', undefined, enterpriseProviderName));
 
-			providerButtons = [githubBtn, googleBtn, appleBtn, enterpriseBtn];
+			providerButtons = [githubBtn, googleBtn, enterpriseBtn];
 		}
 
-		// BYOK: "Bring your own key" entry point, shown beneath the providers.
-		const byokEntry = append(signInActions, $('.sessions-walkthrough-byok-entry'));
-		append(byokEntry, $('span.sessions-walkthrough-byok-divider', undefined, localize('walkthrough.signin.or', "or")));
-		const byokBtn = append(byokEntry, $('button.sessions-walkthrough-byok-btn')) as HTMLButtonElement;
-		append(byokBtn, $('span', undefined, localize('walkthrough.signin.byok', "Bring your own key")));
+		// BYOK: subtle secondary entry point beneath the sign-in providers, styled
+		// as a VS Code text link so it reads as an alternative path rather than a
+		// competing primary action.
+		const byokBtn = append(signInActions, $('button.sessions-walkthrough-byok-link')) as HTMLButtonElement;
+		append(byokBtn, $('span', undefined, localize('walkthrough.signin.byok', "Bring your own key instead")));
 
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
@@ -206,7 +202,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			const providerStrategies = [
 				ChatSetupStrategy.SetupWithoutEnterpriseProvider,
 				ChatSetupStrategy.SetupWithGoogleProvider,
-				ChatSetupStrategy.SetupWithAppleProvider,
 				ChatSetupStrategy.SetupWithEnterpriseProvider,
 			];
 			for (let i = 0; i < providerButtons.length; i++) {
@@ -347,8 +342,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const actions = append(form, $('.sessions-walkthrough-byok-actions'));
 		const backBtn = append(actions, $('button.sessions-walkthrough-byok-back')) as HTMLButtonElement;
 		append(backBtn, $('span', undefined, localize('walkthrough.byok.back', "Back")));
-		const continueBtn = append(actions, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.sessions-walkthrough-byok-continue')) as HTMLButtonElement;
-		append(continueBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.byok.continue', "Continue")));
+		const continueBtn = append(actions, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-byok-continue')) as HTMLButtonElement;
+		append(continueBtn, $('span', undefined, localize('walkthrough.byok.continue', "Continue")));
 
 		// Error feedback
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));

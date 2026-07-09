@@ -126,13 +126,14 @@
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
-	padding: 10px 16px;
-	border-radius: 6px;
-	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
-	background: transparent;
-	color: var(--vscode-foreground);
+	min-height: 36px;
+	padding: 6px 14px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
 	font-size: 13px;
-	font-weight: 500;
+	font-weight: 400;
 	cursor: pointer;
 	transition: background 100ms, border-color 100ms;
 	white-space: nowrap;
@@ -143,8 +144,12 @@
 }
 
 .sessions-walkthrough-provider-btn:hover {
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.sessions-walkthrough-provider-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .sessions-walkthrough-provider-btn:disabled {
@@ -178,15 +183,6 @@
 	background-image: url('./google.svg');
 }
 
-.sessions-walkthrough-provider-btn.provider-apple::before {
-	background-image: url('./apple-dark.svg');
-}
-
-.monaco-workbench.hc-light .sessions-walkthrough-provider-btn.provider-apple::before,
-.monaco-workbench.vs .sessions-walkthrough-provider-btn.provider-apple::before {
-	background-image: url('./apple-light.svg');
-}
-
 /* ---- Provider button row ---- */
 
 .sessions-walkthrough-sign-in-actions {
@@ -214,17 +210,24 @@
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary {
 	flex: 1 1 auto;
 	min-width: 0;
-	padding: 10px 12px;
+	padding: 6px 12px;
 	gap: 8px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-border, transparent);
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary:hover {
+	background: var(--vscode-button-hoverBackground);
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
-	width: 40px;
-	height: 40px;
+	width: 36px;
+	height: 36px;
 	padding: 0;
-	border-radius: 8px;
+	border-radius: 2px;
 	justify-content: center;
-	flex: 0 0 40px;
+	flex: 0 0 36px;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only::before {
@@ -233,9 +236,9 @@
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact {
-	min-height: 40px;
-	padding: 0 6px;
-	border-radius: 8px;
+	min-height: 36px;
+	padding: 0 8px;
+	border-radius: 2px;
 	font-size: 11px;
 	gap: 0;
 	justify-content: center;
@@ -246,47 +249,32 @@
 	display: none;
 }
 
-/* ---- BYOK entry (beneath providers) ---- */
+/* ---- BYOK entry (subtle text link beneath providers) ---- */
 
-.sessions-walkthrough-byok-entry {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	margin-top: 14px;
-}
-
-.sessions-walkthrough-byok-divider {
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: var(--vscode-descriptionForeground);
-	flex: 0 0 auto;
-}
-
-.sessions-walkthrough-byok-btn {
-	flex: 1 1 auto;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	padding: 8px 12px;
-	border-radius: 6px;
-	border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
-	background: transparent;
-	color: var(--vscode-foreground);
+.sessions-walkthrough-byok-link {
+	align-self: flex-start;
+	margin-top: 12px;
+	padding: 2px 0;
+	border: none;
+	background: none;
+	color: var(--vscode-textLink-foreground);
 	font-size: 13px;
-	font-weight: 500;
+	font-family: inherit;
 	cursor: pointer;
-	transition: background 100ms, border-color 100ms;
-	white-space: nowrap;
 }
 
-.sessions-walkthrough-byok-btn:hover {
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 40%, transparent);
+.sessions-walkthrough-byok-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }
 
-.sessions-walkthrough-byok-btn:disabled {
+.sessions-walkthrough-byok-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.sessions-walkthrough-byok-link:disabled {
 	opacity: 0.5;
 	cursor: default;
 }
@@ -315,9 +303,9 @@
 
 .sessions-walkthrough-byok-select,
 .sessions-walkthrough-byok-input {
-	padding: 8px 10px;
-	border-radius: 6px;
-	border: 1px solid var(--vscode-input-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+	padding: 6px 8px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-input-border, transparent);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font-size: 13px;
@@ -326,7 +314,8 @@
 
 .sessions-walkthrough-byok-select:focus,
 .sessions-walkthrough-byok-input:focus {
-	outline: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 	border-color: var(--vscode-focusBorder);
 }
 
@@ -341,26 +330,36 @@
 	margin-top: 4px;
 }
 
+/* Primary "Continue" uses the VS Code button treatment. */
 .sessions-walkthrough-byok-continue {
 	flex: 1 1 auto;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 2px;
 }
 
+.sessions-walkthrough-byok-continue:hover {
+	background: var(--vscode-button-hoverBackground);
+	border-color: var(--vscode-button-border, transparent);
+}
+
+/* Secondary "Back" uses the VS Code secondary button treatment. */
 .sessions-walkthrough-byok-back {
 	flex: 0 0 auto;
-	padding: 10px 16px;
-	border-radius: 6px;
-	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
-	background: transparent;
-	color: var(--vscode-foreground);
+	padding: 6px 14px;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
 	font-size: 13px;
-	font-weight: 500;
+	font-weight: 400;
+	font-family: inherit;
 	cursor: pointer;
-	transition: background 100ms, border-color 100ms;
 }
 
 .sessions-walkthrough-byok-back:hover {
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .sessions-walkthrough-byok-back:disabled,
