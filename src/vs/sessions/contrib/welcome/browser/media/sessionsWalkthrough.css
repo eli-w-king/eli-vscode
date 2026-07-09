@@ -246,6 +246,129 @@
 	display: none;
 }
 
+/* ---- BYOK entry (beneath providers) ---- */
+
+.sessions-walkthrough-byok-entry {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 14px;
+}
+
+.sessions-walkthrough-byok-divider {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--vscode-descriptionForeground);
+	flex: 0 0 auto;
+}
+
+.sessions-walkthrough-byok-btn {
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 100ms, border-color 100ms;
+	white-space: nowrap;
+}
+
+.sessions-walkthrough-byok-btn:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 40%, transparent);
+}
+
+.sessions-walkthrough-byok-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* ---- BYOK form (provider + API key entry) ---- */
+
+.sessions-walkthrough-byok-form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: min(100%, 400px);
+	margin-top: 16px;
+}
+
+.sessions-walkthrough-byok-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.sessions-walkthrough-byok-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-walkthrough-byok-select,
+.sessions-walkthrough-byok-input {
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-input-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	font-family: inherit;
+}
+
+.sessions-walkthrough-byok-select:focus,
+.sessions-walkthrough-byok-input:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-walkthrough-byok-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.sessions-walkthrough-byok-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.sessions-walkthrough-byok-continue {
+	flex: 1 1 auto;
+}
+
+.sessions-walkthrough-byok-back {
+	flex: 0 0 auto;
+	padding: 10px 16px;
+	border-radius: 6px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 100ms, border-color 100ms;
+}
+
+.sessions-walkthrough-byok-back:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+}
+
+.sessions-walkthrough-byok-back:disabled,
+.sessions-walkthrough-byok-continue:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
 /* ---- Hero layout (icon left, text right) ---- */
 
 .sessions-walkthrough-hero {

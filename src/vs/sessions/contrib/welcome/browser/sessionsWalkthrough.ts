@@ -34,8 +34,19 @@ const fallbackChatAgentLinks = {
 
 /**
  * Sign-in onboarding overlay:
- *   - Sign in via GitHub / Google / Apple
+ *   - Sign in via GitHub / Google / Apple / Enterprise
+ *   - Or bring your own key (BYOK): connect a model provider with an API key
  */
+
+/** Model providers offered in the BYOK onboarding step. */
+const byokProviders: readonly { readonly id: string; readonly label: string }[] = [
+	{ id: 'anthropic', label: 'Anthropic' },
+	{ id: 'openai', label: 'OpenAI' },
+	{ id: 'gemini', label: 'Google Gemini' },
+	{ id: 'azure', label: 'Azure OpenAI' },
+	{ id: 'openrouter', label: 'OpenRouter' },
+	{ id: 'ollama', label: 'Ollama' },
+];
 export class SessionsWalkthroughOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
@@ -158,6 +169,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			providerButtons = [githubBtn, googleBtn, appleBtn, enterpriseBtn];
 		}
 
+		// BYOK: "Bring your own key" entry point, shown beneath the providers.
+		const byokEntry = append(signInActions, $('.sessions-walkthrough-byok-entry'));
+		append(byokEntry, $('span.sessions-walkthrough-byok-divider', undefined, localize('walkthrough.signin.or', "or")));
+		const byokBtn = append(byokEntry, $('button.sessions-walkthrough-byok-btn')) as HTMLButtonElement;
+		append(byokBtn, $('span', undefined, localize('walkthrough.signin.byok', "Bring your own key")));
+
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
 		errorContainer.style.display = 'none';
@@ -169,7 +186,11 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
+		this.currentFocusableElements = [...providerButtons, byokBtn, ...this.disclaimerLinks];
+
+		// BYOK is available on both web and desktop; it opens an in-walkthrough
+		// step where the user picks a provider and enters an API key.
+		stepDisposables.add(addDisposableListener(byokBtn, EventType.CLICK, () => this._renderByok()));
 
 		if (isWeb) {
 			// Web: GitHub button uses IAuthenticationService directly
@@ -273,6 +294,159 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this.logService.error('[sessions walkthrough] Web sign-in failed:', err);
 			await this._showErrorAndReset(error, localize('walkthrough.signInError', "Something went wrong. Please try again."));
 		}
+	}
+
+	// ------------------------------------------------------------------
+	// Bring your own key (BYOK)
+
+	/**
+	 * Renders the BYOK step of the walkthrough: the user selects a model
+	 * provider and enters an API key, then continues into the app. Mirrors the
+	 * enterprise sign-in shape but collects a key instead of an OAuth flow.
+	 */
+	private _renderByok(initialError?: string): void {
+		const stepDisposables = this.stepDisposables.value = new DisposableStore();
+
+		this.contentContainer.textContent = '';
+		this.footerContainer.textContent = '';
+		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+
+		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
+		append(layout, $('div.sessions-walkthrough-logo'));
+
+		const right = append(layout, $('.sessions-walkthrough-hero-text'));
+		const titleEl = append(right, $('h2', undefined, localize('walkthrough.byok.title', "Bring your own key")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.byok.subtitle', "Connect your own model provider with an API key to get started.")));
+
+		const form = append(right, $('.sessions-walkthrough-byok-form'));
+
+		// Provider selection
+		const providerField = append(form, $('.sessions-walkthrough-byok-field'));
+		const providerLabel = append(providerField, $('label.sessions-walkthrough-byok-label', undefined, localize('walkthrough.byok.provider', "Provider"))) as HTMLLabelElement;
+		const providerSelect = append(providerField, $('select.sessions-walkthrough-byok-select')) as HTMLSelectElement;
+		providerLabel.htmlFor = 'sessions-byok-provider';
+		providerSelect.id = 'sessions-byok-provider';
+		for (const provider of byokProviders) {
+			const option = append(providerSelect, $('option')) as HTMLOptionElement;
+			option.value = provider.id;
+			option.textContent = provider.label;
+		}
+
+		// API key entry
+		const keyField = append(form, $('.sessions-walkthrough-byok-field'));
+		const keyLabel = append(keyField, $('label.sessions-walkthrough-byok-label', undefined, localize('walkthrough.byok.apiKey', "API key"))) as HTMLLabelElement;
+		const keyInput = append(keyField, $('input.sessions-walkthrough-byok-input')) as HTMLInputElement;
+		keyLabel.htmlFor = 'sessions-byok-key';
+		keyInput.id = 'sessions-byok-key';
+		keyInput.type = 'password';
+		keyInput.autocomplete = 'off';
+		keyInput.spellcheck = false;
+		keyInput.placeholder = localize('walkthrough.byok.apiKeyPlaceholder', "Paste your API key");
+
+		// Actions: back to sign-in, continue with key
+		const actions = append(form, $('.sessions-walkthrough-byok-actions'));
+		const backBtn = append(actions, $('button.sessions-walkthrough-byok-back')) as HTMLButtonElement;
+		append(backBtn, $('span', undefined, localize('walkthrough.byok.back', "Back")));
+		const continueBtn = append(actions, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.sessions-walkthrough-byok-continue')) as HTMLButtonElement;
+		append(continueBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.byok.continue', "Continue")));
+
+		// Error feedback
+		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
+		if (initialError) {
+			errorContainer.textContent = initialError;
+			errorContainer.style.display = '';
+		} else {
+			errorContainer.style.display = 'none';
+		}
+
+		this.currentFocusableElements = [providerSelect, keyInput, backBtn, continueBtn, ...this.disclaimerLinks];
+
+		disposableTimeout(() => {
+			if (this.overlay.isConnected && !keyInput.disabled) {
+				keyInput.focus();
+			}
+		}, 0, stepDisposables);
+
+		stepDisposables.add(addDisposableListener(backBtn, EventType.CLICK, () => this._renderSignIn()));
+
+		const submit = () => this._runByok(providerSelect, keyInput, [backBtn, continueBtn], errorContainer, titleEl, subtitleEl, form);
+		stepDisposables.add(addDisposableListener(continueBtn, EventType.CLICK, submit));
+		stepDisposables.add(addDisposableListener(keyInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				submit();
+			}
+		}));
+	}
+
+	private async _runByok(providerSelect: HTMLSelectElement, keyInput: HTMLInputElement, controls: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, form: HTMLElement): Promise<void> {
+		const apiKey = keyInput.value.trim();
+		if (!apiKey) {
+			error.textContent = localize('walkthrough.byok.missingKey', "Enter an API key to continue.");
+			error.style.display = '';
+			keyInput.focus();
+			return;
+		}
+
+		const providerId = providerSelect.value;
+
+		// Disable inputs while configuring
+		for (const btn of controls) {
+			btn.disabled = true;
+		}
+		providerSelect.disabled = true;
+		keyInput.disabled = true;
+		this.currentFocusableElements = [];
+		error.style.display = 'none';
+
+		// Fade out, then swap to progress
+		this.disclaimerElement.classList.add('hidden');
+		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+		await this._wait(fadeDuration);
+		if (this._shouldAbortUpdate(titleEl, subtitleEl, form)) {
+			return;
+		}
+
+		titleEl.textContent = localize('walkthrough.byok.connecting', "Connecting\u2026");
+		subtitleEl.textContent = localize('walkthrough.byok.connectingSubtitle', "Validating your API key and setting up your models.");
+
+		const heroText = form.parentElement;
+		form.remove();
+		if (heroText) {
+			append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
+		}
+		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+
+		try {
+			await this._configureByokProvider(providerId, apiKey);
+			if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+				return;
+			}
+			this.complete();
+		} catch (err) {
+			this.logService.error('[sessions walkthrough] BYOK setup failed:', err);
+			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+			await this._wait(fadeDuration);
+			if (!this.overlay.isConnected) {
+				return;
+			}
+			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+			this._renderByok(localize('walkthrough.byok.setupError', "Couldn't validate that key. Please try again."));
+		}
+	}
+
+	/**
+	 * Configures the selected BYOK provider with the supplied API key.
+	 *
+	 * NOTE: For the onboarding demo this simulates provider validation and then
+	 * completes the walkthrough. Production wiring would forward the key to the
+	 * Copilot BYOK key store (see `extensions/copilot/.../byok`) via a dedicated
+	 * command so the provider's models appear in the model picker.
+	 */
+	private async _configureByokProvider(providerId: string, apiKey: string): Promise<void> {
+		void providerId;
+		void apiKey;
+		await this._wait(1400);
 	}
 
 	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
