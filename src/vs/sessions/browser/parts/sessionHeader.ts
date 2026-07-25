@@ -16,8 +16,9 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
+import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -349,13 +350,14 @@ export class SessionHeader extends Disposable {
 		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		const status = session.status.read(reader);
-		const isRead = this._sessionsListModelService.isSessionRead(session);
+		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
 		this._statusIcon.setStatus(status, isRead, isArchived, pullRequestIcon);
 
-		// Session title
-		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
+		// Session title — quick chats use "New Chat" as the untitled fallback.
+		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
+		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 
 		// Meta row: workspace · diff stats
@@ -450,7 +452,7 @@ export class SessionHeader extends Disposable {
 	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.supportsRename ?? false);
+		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
@@ -472,11 +474,10 @@ export class SessionHeader extends Disposable {
 		}
 
 		const initialTitle = session.title.get();
-		// When the stored title is empty the header shows a localized fallback
-		// ("New Session"). Reflect that as a placeholder rather than seeding the
-		// input with it, so the user neither sees a blank field nor accidentally
-		// commits the fallback string.
-		const fallbackTitle = localize('agentSessions.newSession', "New Session");
+		// When the stored title is empty the header shows a localized fallback.
+		// Reflect that as a placeholder rather than seeding the input with it, so
+		// the user neither sees a blank field nor accidentally commits the fallback.
+		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 		const input = document.createElement('input');
 		input.type = 'text';

@@ -44,6 +44,9 @@ import { autorun } from '../../../base/common/observable.js';
 import { ISessionsSidebarService } from '../../services/sessions/browser/sessionsSidebarService.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
+/** Sessions list minimum width; shared with the docked details panel so both snap closed alike. */
+export const SESSIONS_LIST_MINIMUM_WIDTH = isWeb ? 270 : 170;
+
 /**
  * Sidebar part specifically for agent sessions workbench.
  * This is a simplified version of the SidebarPart for agent session contexts.

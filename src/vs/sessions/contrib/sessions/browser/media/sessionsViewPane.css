@@ -86,6 +86,53 @@
 		user-select: none;
 	}
 
+	/* Inline search input — replaces label + actions when active */
+	.agent-sessions-find-widget-container {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
+		position: static;
+		display: flex;
+		width: 100%;
+		max-width: none;
+		margin: 0;
+		padding: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none !important;
+		background: transparent;
+		background-color: transparent !important;
+	}
+
+	.agent-sessions-find-widget-container .monaco-tree-type-filter .monaco-tree-type-filter-input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+		display: flex;
+		align-items: center;
+		min-height: 24px;
+		box-sizing: border-box;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
+		top: 1.5px;
+	}
+
+	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;

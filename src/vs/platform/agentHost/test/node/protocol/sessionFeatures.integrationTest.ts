@@ -13,15 +13,17 @@ import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
+	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Session Features', function () {
 
@@ -29,7 +31,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
@@ -136,7 +138,13 @@ suite('Protocol WebSocket — Session Features', function () {
 			},
 		});
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/titleChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as ITitleChangedAction;
+			return action.title === 'Persisted Title';
+		});
 
 		// Poll listSessions until the persisted title appears (async DB write)
 		let session: { title: string } | undefined;
@@ -159,11 +167,12 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-message-model');
 		client.dispatch({
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-model',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'mock-model' } },
 			},
 		});
@@ -228,7 +237,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message when the session is idle — server should immediately consume it
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -264,7 +273,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message while the turn is in progress
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -310,7 +319,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Set a steering message while the turn is in progress
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -359,7 +368,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate: keep only turn-t1
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 3,
 			action: { type: 'chat/truncated', turnId: 'turn-t1' },
 		});
@@ -383,7 +392,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate all (no turnId)
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: { type: 'chat/truncated' },
 		});
@@ -410,7 +419,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate to turn-tr1
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 3,
 			action: { type: 'chat/truncated', turnId: 'turn-tr1' },
 		});

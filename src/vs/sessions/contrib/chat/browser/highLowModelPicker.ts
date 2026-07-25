@@ -121,7 +121,7 @@ export class HighLowModelPicker extends Disposable {
 		if (persist) {
 			this._storageService.store(modeStorageKey(session.providerId, session.sessionType), mode, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
-		const models = provider.getModels(session.sessionId);
+		const models = provider.getModelsSnapshot(session.sessionId).models;
 		const override = this._configurationService.getValue<string>(mode === 'high' ? AGENT_SESSIONS_HIGH_MODEL_SETTING : AGENT_SESSIONS_LOW_MODEL_SETTING);
 		const model = resolveModelForMode(models, mode, override);
 		if (model) {
@@ -167,7 +167,7 @@ export class HighLowModelPicker extends Disposable {
 		if (!session) {
 			return undefined;
 		}
-		const models = this._sessionsProvidersService.getProvider(session.providerId)?.getModels(session.sessionId) ?? [];
+		const models = this._sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId).models ?? [];
 		const override = this._configurationService.getValue<string>(mode === 'high' ? AGENT_SESSIONS_HIGH_MODEL_SETTING : AGENT_SESSIONS_LOW_MODEL_SETTING);
 		return resolveModelForMode(models, mode, override)?.metadata.name;
 	}

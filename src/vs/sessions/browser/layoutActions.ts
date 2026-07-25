@@ -151,6 +151,10 @@ class ToggleSidePanelAction extends Action2 {
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSidePanelAction);
 
+// The single-pane "Toggle Details" editor-title item is registered by
+// `SinglePaneLayoutController` (a dedicated command that toggles
+// the detail panel and auto-hides / restores the sessions list in one gesture).
+
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	command: {
 		id: 'workbench.action.closePanel',
