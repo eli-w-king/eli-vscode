@@ -170,7 +170,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('offers Default approvals, Assisted permissions, and Allow all in order', () => {
+	test('offers Default approvals, Assisted permissions, and Ask Questions in order', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'assisted');
 
 		assert.deepStrictEqual({
@@ -186,7 +186,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			metadata: [
 				{ label: 'Default approvals', detail: 'Asks when approval settings don\'t apply', hover: undefined },
 				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
-				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
+				{ label: 'Ask Questions', detail: 'Runs tool calls without asking', hover: 'Auto-approve all tool calls, but keep working interactively so Copilot can pause to ask you questions.' },
 			],
 			available: [
 				ChatPermissionLevel.Default,

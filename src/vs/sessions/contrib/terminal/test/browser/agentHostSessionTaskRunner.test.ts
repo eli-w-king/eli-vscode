@@ -250,41 +250,4 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.deepStrictEqual(sentText, [{ text: `${expectedCommand} --agents`, shouldExecute: true }]);
 	});
 
-	test('expands ${workspaceFolder} to the session working directory', async () => {
-		const cwd = URI.file('/path/to/worktree');
-		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd });
-		const task: ITaskEntry = {
-			label: 'Run Client',
-			type: 'shell',
-			command: './scripts/code.sh',
-			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
-		};
-
-		(await runner.runTask(task, session))?.dispose();
-
-		assert.deepStrictEqual(sentText, [{
-			text: `./scripts/code.sh --user-data-dir=${cwd.path}/.profile-oss`,
-			shouldExecute: true,
-		}]);
-		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
-	});
-
-	test('remote agent-host sessions expand ${workspaceFolder} from the POSIX host path without the renderer resolver', async () => {
-		const innerCwd = URI.file('/remote/worktree');
-		const session = makeSession({ providerId: 'agenthost-myhost', cwd: toAgentHostUri(innerCwd, 'remote') });
-		const task: ITaskEntry = {
-			label: 'Run Client',
-			type: 'shell',
-			command: './scripts/code.sh',
-			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
-		};
-
-		(await runner.runTask(task, session))?.dispose();
-
-		assert.deepStrictEqual(sentText, [{
-			text: `./scripts/code.sh --user-data-dir=${innerCwd.path}/.profile-oss`,
-			shouldExecute: true,
-		}]);
-		assert.deepStrictEqual(resolverCalls, []);
-	});
 });

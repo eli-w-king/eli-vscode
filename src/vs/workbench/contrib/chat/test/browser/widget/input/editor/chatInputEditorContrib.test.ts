@@ -24,6 +24,9 @@ suite('ChatTokenDeleter', () => {
 
 	function createWidget(editor: IChatWidget['inputEditor'], onRefreshParsedInput: () => void): IChatWidget {
 		return {
+			// The token deleter bails on transcript-only widgets (no input part), so the
+			// stub must advertise one for the contribution to attach.
+			input: {},
 			inputEditor: editor,
 			refreshParsedInput: onRefreshParsedInput,
 		} as unknown as IChatWidget;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
@@ -32,20 +31,20 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
 	});
 
-	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
-		// The original (non-single-pane) editor-title menu items reference the core toggle command
-		// rather than registering their own; assert it is actually registered so the contribution
-		// cannot silently break. (The single-pane "Toggle Details" item is a dedicated command
-		// registered by SinglePaneLayoutController and is asserted in its own suite.)
+	test('auxiliary bar toggle reuses the core command, which the agents-window side panel toggle delegates to', () => {
+		// The Agents window replaces the editor-title "Hide/Show Secondary Side Bar" items with
+		// its own ToggleSidePanelAction, but still relies on the core toggle command existing;
+		// assert it is registered so that contribution cannot silently break.
 		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
 
-		// Original layout: two mutually-exclusive right-panel icons on the layout group.
+		// The agents window intentionally contributes no editor-title items for the core
+		// command — the side panel is toggled through ToggleSidePanelAction instead.
 		const layoutToggleIcons = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID)
 			.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined)
 			.sort((a, b) => (a ?? '').localeCompare(b ?? ''));
-		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
+		assert.deepStrictEqual(layoutToggleIcons, []);
 	});
 
 	test('core auxiliary bar command delegates to the layout service', async () => {

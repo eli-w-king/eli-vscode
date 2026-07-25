@@ -24,8 +24,8 @@ suite('Copilot PermissionPicker', () => {
 			},
 			{
 				level: ChatPermissionLevel.AutoApprove,
-				label: 'Allow all',
-				detail: 'Runs tool calls without asking',
+				label: 'Ask Questions',
+				detail: 'Auto-approves tools; still asks you questions',
 			},
 			{
 				level: ChatPermissionLevel.Autopilot,
