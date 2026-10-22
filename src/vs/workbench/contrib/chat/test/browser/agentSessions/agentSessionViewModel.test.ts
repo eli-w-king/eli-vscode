@@ -10,26 +10,28 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
 
 	constructor(
-		private readonly sessionItems: readonly IChatSessionItem[],
+		private sessionItems: readonly IChatSessionItem[],
 	) { }
 
 	get items(): readonly IChatSessionItem[] {
@@ -37,6 +39,10 @@ class StaticChatSessionItemController implements IChatSessionItemController {
 	}
 
 	async refresh(): Promise<void> { }
+
+	setItems(sessionItems: readonly IChatSessionItem[]): void {
+		this.sessionItems = sessionItems;
+	}
 }
 
 
@@ -102,6 +108,70 @@ suite('AgentSessions', () => {
 				assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
 				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
 				assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
+			});
+		});
+
+		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Two providers registered only as item controllers (no static
+				// contribution) — mirrors the agent host (`agent-host-copilotcli`),
+				// which is neither built-in nor a static contribution.
+				const siblingController = new StaticChatSessionItemController([makeSimpleSessionItem('eh-1', { resource: URI.parse('type-eh://eh-1') })]);
+				const agentHostController = new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })]);
+				mockChatSessionsService.registerChatSessionItemController('type-eh', siblingController);
+				mockChatSessionsService.registerChatSessionItemController('type-agenthost', agentHostController);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// The sibling provider refreshes with a partial (here empty) list — as
+				// the extension-host Copilot CLI provider does mid-migration. This must
+				// NOT drop the other provider's rows (regression: they used to vanish).
+				siblingController.setItems([]);
+				await viewModel.resolve('type-eh');
+
+				assert.deepStrictEqual(viewModel.sessions.map(s => s.resource.toString()), ['type-agenthost://ah-1']);
+			});
+		});
+
+		test('should preserve change summaries when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: { files: 2, insertions: 8, deletions: 3 },
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
+			});
+		});
+
+		test('should demote hydrated changes when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: [
+							{ modifiedUri: URI.file('/first'), insertions: 3, deletions: 1 },
+							{ modifiedUri: URI.file('/second'), insertions: 5, deletions: 2 },
+						],
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
 			});
 		});
 
@@ -1224,7 +1294,7 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const localSession = createSession({ providerType: AgentSessionProviders.Local });
 
@@ -1241,7 +1311,7 @@ suite('AgentSessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const unknownSession = createSession({ providerType: 'some-unknown-type' });
 
@@ -1271,7 +1341,7 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
 
 			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
 			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
@@ -2156,6 +2226,18 @@ suite('AgentSessions', () => {
 		let instantiationService: TestInstantiationService;
 		let viewModel: AgentSessionsModel;
 
+		class OpenChatWidgetService extends TestChatWidgetService {
+			private readonly widget = new class extends mock<IChatWidget>() { };
+
+			constructor(private readonly openSessionResource: URI) {
+				super();
+			}
+
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				return isEqual(resource, this.openSessionResource) ? this.widget : undefined;
+			}
+		}
+
 		/** Mirrors the Agent Host controller: records the mutation, then echoes it back. */
 		class ReadOwningController implements IChatSessionItemController {
 			private readonly _onDidChangeChatSessionItems = disposables.add(new Emitter<IChatSessionItemsDelta>());
@@ -2203,6 +2285,71 @@ suite('AgentSessions', () => {
 		});
 
 		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('keeps an open session read when a later provider unread update arrives', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				controller.setItems([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+					isMarkedUnread: false,
+				});
+			});
+		});
+
+		test('preserves an explicit unread update for an open session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				viewModel.sessions[0].setRead(false);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: false }],
+					isRead: false,
+					isMarkedUnread: true,
+				});
+			});
+		});
 
 		test('reads the provider value and routes mutations back to it', async () => {
 			return runWithFakedTimers({}, async () => {
@@ -2447,6 +2594,11 @@ suite('AgentSessions', () => {
 			assert.ok(name.length > 0);
 		});
 
+		test('should return detailed Local provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.Local);
+			assert.strictEqual(description, 'Run tasks within VS Code\'s long-standing proprietary agent harness. The agent works in VS Code\'s extension host, iterates via chat, and works interactively to implement changes on your main workspace.');
+		});
+
 		test('should return correct name for Background provider', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.Background);
 			assert.ok(name.length > 0);
@@ -2474,12 +2626,17 @@ suite('AgentSessions', () => {
 
 		test('should return correct icon for AgentHostCopilot provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(icon.id, Codicon.vm.id);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
 		});
 
 		test('should return simplified AgentHostCopilot name', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
 			assert.strictEqual(name, 'Copilot');
+		});
+
+		test('should return detailed AgentHostCopilot provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(description, 'Run tasks using the Copilot SDK, which is the agent experience shared consistently across GitHub Copilot products. The agent works in the Agent Host, which lets sessions continue in the background, independently of an editor window.');
 		});
 
 		test('should return correct name for Growth provider', () => {
@@ -2632,6 +2789,11 @@ suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel - getAgentCanContinueIn', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return false for Local provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Local);
+			assert.strictEqual(result, false);
+		});
 
 		test('should return true for Cloud provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud);

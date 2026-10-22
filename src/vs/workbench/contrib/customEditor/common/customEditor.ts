@@ -35,11 +35,6 @@ export interface ICustomEditorService {
 
 	readonly models: ICustomEditorModelManager;
 
-	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
-
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
 	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined;
 }
@@ -83,7 +78,7 @@ export const enum CustomEditorPriority {
 	default = 'default',
 	builtin = 'builtin',
 	option = 'option',
-	never = 'never',
+	explicit = 'explicit',
 }
 
 export const enum CustomEditorDiffEditorLayout {
@@ -95,7 +90,7 @@ export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
-export type CustomEditorPriorityInfo = RegisteredEditorPriorityInfo;
+export type CustomEditorPriorityInfo = Omit<RegisteredEditorPriorityInfo, 'merge'>;
 
 export interface CustomEditorDescriptor {
 	readonly id: string;
