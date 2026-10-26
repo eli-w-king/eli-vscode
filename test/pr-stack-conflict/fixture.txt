@@ -1,5 +1,5 @@
 line 1: base
 line 2: base
-line 3: changed by PR 2
+line 3: resolved (PR 8 and PR 9 changes merged)
 line 4: base
 line 5: base
