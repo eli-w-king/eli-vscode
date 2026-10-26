@@ -1,5 +1,5 @@
 line 1: base
 line 2: base
-line 3: base
+line 3: changed by PR 2
 line 4: base
 line 5: base
