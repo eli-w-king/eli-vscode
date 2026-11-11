@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -33,12 +35,15 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 /**
- * Moves an open Automations surface when `chat.automations.layout` switches between the modal and a page
- * layout, and registers the spotlight that New shows the first time.
+ * Keeps the open Automations surface in step with `chat.automations.layout`: the modal while it's `modal`, the page
+ * otherwise. It also registers the spotlight that New shows the first time.
  */
 class AutomationsLayoutContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.automationsLayout';
+
+	/** Runs one reconciliation at a time, so quick setting changes can't interleave half-finished moves. */
+	private readonly reconciliation = new Sequencer();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -47,26 +52,15 @@ class AutomationsLayoutContribution extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this._register(onboardingScenarioRegistry.register(createAutomationsDescribeSpotlight()));
-		let previous = this.getLayout();
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (!event.affectsConfiguration(CHAT_AUTOMATIONS_LAYOUT_SETTING)) {
-				return;
-			}
-			const next = this.getLayout();
-			if (next !== previous) {
-				void this.moveOpenSurface(previous, next);
-				previous = next;
+			if (event.affectsConfiguration(CHAT_AUTOMATIONS_LAYOUT_SETTING)) {
+				this.scheduleReconcile();
 			}
 		}));
 		// Callers that show the Automations page directly still land in the modal while the layout is `modal`.
 		this._register(autorun(reader => {
 			if (customViewService.activeCustomView.read(reader)?.id === AUTOMATIONS_CUSTOM_VIEW_ID && this.getLayout() === 'modal') {
-				queueMicrotask(() => {
-					if (customViewService.activeCustomView.read(undefined)?.id === AUTOMATIONS_CUSTOM_VIEW_ID && this.getLayout() === 'modal') {
-						customViewService.hideCustomView();
-						void editorService.openEditor(AutomationsManagementEditorInput.getOrCreate(), { pinned: true });
-					}
-				});
+				this.scheduleReconcile();
 			}
 		}));
 	}
@@ -75,12 +69,24 @@ class AutomationsLayoutContribution extends Disposable implements IWorkbenchCont
 		return toAutomationsLayout(this.configurationService.getValue(CHAT_AUTOMATIONS_LAYOUT_SETTING));
 	}
 
-	private async moveOpenSurface(previous: AutomationsLayout, next: AutomationsLayout): Promise<void> {
+	private scheduleReconcile(): void {
+		this.reconciliation.queue(() => this.reconcile()).catch(onUnexpectedError);
+	}
+
+	/** Reads the setting and what's open when it runs, so a later change always wins over an earlier one. */
+	private async reconcile(): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (this.getLayout() === 'modal') {
+			if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+				this.customViewService.hideCustomView();
+				await this.editorService.openEditor(AutomationsManagementEditorInput.getOrCreate(), { pinned: true });
+			}
+			return;
+		}
 		const modalEditors = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof AutomationsManagementEditorInput);
-		if (next === 'modal' && this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
-			this.customViewService.hideCustomView();
-			await this.editorService.openEditor(AutomationsManagementEditorInput.getOrCreate(), { pinned: true });
-		} else if (previous === 'modal' && modalEditors.length > 0) {
+		if (modalEditors.length > 0) {
 			await this.editorService.closeEditors(modalEditors);
 			this.customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 		}

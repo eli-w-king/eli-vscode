@@ -68,9 +68,11 @@ export function describeCronExpression(expression: string): string | undefined {
 	}
 	const anyDay = dayOfMonthField === '*' && dayOfWeekField === '*';
 
+	// A step restarts at each hour or day, so only steps that divide it evenly run at a constant interval:
+	// `*/45 * * * *` runs at :00 and :45, which is not "every 45 minutes".
 	const minuteStep = parseStep(minuteField);
 	if (minuteStep !== undefined) {
-		return hourField === '*' && anyDay ? everyMinutes(minuteStep) : undefined;
+		return hourField === '*' && anyDay && 60 % minuteStep === 0 ? everyMinutes(minuteStep) : undefined;
 	}
 	const minute = parseNumber(minuteField, 0, 59);
 	if (minute === undefined) {
@@ -81,7 +83,7 @@ export function describeCronExpression(expression: string): string | undefined {
 	}
 	const hourStep = parseStep(hourField);
 	if (hourStep !== undefined) {
-		return anyDay && hourStep < 24 ? everyHours(hourStep) : undefined;
+		return anyDay && hourStep < 24 && 24 % hourStep === 0 ? everyHours(hourStep) : undefined;
 	}
 	const hour = parseNumber(hourField, 0, 23);
 	if (hour === undefined) {

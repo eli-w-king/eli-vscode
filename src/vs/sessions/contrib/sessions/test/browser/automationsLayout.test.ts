@@ -69,11 +69,16 @@ suite('Automations layout schedules', () => {
 			describeAutomationSchedule(schedule('cron', 0, 0, 0, '15 7 1,15 * *')),
 			describeAutomationSchedule(schedule('cron', 0, 0, 0, '0 9 * 1 *')),
 			describeAutomationSchedule(schedule('cron', 0, 0, 0, '0 9 1 * 1')),
+			// Steps that don't divide the hour or day run at uneven intervals.
+			describeAutomationSchedule(schedule('cron', 0, 0, 0, '*/45 * * * *')),
+			describeAutomationSchedule(schedule('cron', 0, 0, 0, '0 */5 * * *')),
 			describeAutomationSchedule(schedule('custom')),
 		], [
 			{ label: 'Custom schedule', cronExpression: '15 7 1,15 * *' },
 			{ label: 'Custom schedule', cronExpression: '0 9 * 1 *' },
 			{ label: 'Custom schedule', cronExpression: '0 9 1 * 1' },
+			{ label: 'Custom schedule', cronExpression: '*/45 * * * *' },
+			{ label: 'Custom schedule', cronExpression: '0 */5 * * *' },
 			{ label: 'Custom schedule' },
 		]);
 	});

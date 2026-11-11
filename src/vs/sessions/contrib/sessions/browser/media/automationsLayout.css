@@ -586,7 +586,8 @@
 
 .automations-layout-row:hover .automations-layout-actions,
 .automations-layout-row:focus-within .automations-layout-actions,
-.automations-layout-row.menu-open .automations-layout-actions {
+.automations-layout-row.menu-open .automations-layout-actions,
+.automations-layout-row.restoring-focus .automations-layout-actions {
 	visibility: visible;
 }
 

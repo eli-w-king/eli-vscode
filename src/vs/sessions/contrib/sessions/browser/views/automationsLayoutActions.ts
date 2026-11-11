@@ -104,10 +104,12 @@ export class AutomationsLayoutActions {
 	/**
 	 * Sends `/automate <goal>` to a new chat without a workspace, with the built-in skill attached, as the
 	 * Start Chat form does. When that handoff can't run here, a new session sends the same text instead. A failed
-	 * send is reported rather than retried, so it never sends twice. Returns whether a chat opened.
+	 * send is reported rather than retried, so it never sends twice. `onSent` runs once the request is sent, before
+	 * the chat opens. Returns whether a chat opened.
 	 */
-	async sendAutomationGoal(goal: string): Promise<boolean> {
+	async sendAutomationGoal(goal: string, onSent?: () => void): Promise<boolean> {
 		const query = `${AUTOMATE_COMMAND_PREFIX}${goal}`;
+		let sent = false;
 		try {
 			const skill = await this.findAutomateSkill();
 			if (skill) {
@@ -118,15 +120,21 @@ export class AutomationsLayoutActions {
 				if (!session) {
 					throw new Error(localize('automationsLayout.chatUnconfirmed', "The provider did not confirm the new chat. Check your sessions before retrying."));
 				}
+				sent = true;
+				onSent?.();
 				await this.sessionsService.openSession(session.resource);
 			} else {
 				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { prompt: query } satisfies INewSessionInAgentsWindowOptions);
+				sent = true;
+				onSent?.();
 			}
 			return true;
 		} catch (error) {
-			if (!isCancellationError(error)) {
+			if (sent || !isCancellationError(error)) {
 				this.logService.error('[AutomationsLayout] Could not start the automation chat.', error);
-				this.notificationService.error(localize('automationsLayout.chatFailed', "Couldn't start a chat for this automation: {0}", getErrorMessage(error)));
+				this.notificationService.error(sent
+					? localize('automationsLayout.chatOpenFailed', "The chat for this automation started, but it couldn't be opened: {0}", getErrorMessage(error))
+					: localize('automationsLayout.chatFailed', "Couldn't start a chat for this automation: {0}", getErrorMessage(error)));
 			}
 			return false;
 		}

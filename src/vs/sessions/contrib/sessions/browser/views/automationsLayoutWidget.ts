@@ -23,7 +23,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { autorun, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -66,6 +66,8 @@ import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsS
 import { getAutomationsSampleData, IAutomationsSampleData, sampleAutomationRunsRead } from './automationsLayoutSampleData.js';
 import { describeAutomationSchedule } from './automationsLayoutSchedule.js';
 import { readAutomationTemplates } from './automationTemplates.js';
+import { automationRunWithLocalProgress } from './automationRunProgress.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 const $ = DOM.$;
 
@@ -85,8 +87,6 @@ const CODE_PLACEHOLDER = '\uE000';
 /** Set on the chat input at the top of the `chatInput` layout. */
 const AutomationsLayoutInputContext = new RawContextKey<boolean>('automationsLayoutInput', false);
 const SEND_AUTOMATION_GOAL_COMMAND_ID = 'sessions.automations.layout.send';
-/** How long a second Enter on the same text waits for the first send before it may retry. */
-const SEND_RETRY_AFTER_MS = 10_000;
 const sendHandlers = new WeakMap<object, () => Promise<void>>();
 let focusedSendHandler: (() => Promise<void>) | undefined;
 
@@ -159,6 +159,12 @@ interface INavItem {
 	readonly label: HTMLElement;
 	readonly warning: HTMLElement;
 	readonly count: HTMLElement;
+}
+
+interface IFocusedContent {
+	readonly key: string;
+	/** The `data-control` name of the focused control in the item (`run`, `more`, `enabled` or `use`), if any. */
+	readonly control: string | undefined;
 }
 
 function getNavLabel(id: AutomationsNavId): string {
@@ -275,6 +281,7 @@ class AutomationsLayoutModel extends Disposable {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		const sampleSetting = observableConfigValue<boolean>(CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING, false, configurationService);
@@ -285,18 +292,25 @@ class AutomationsLayoutModel extends Disposable {
 			: undefined);
 		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
+		// Like today's page, newer progress in a run's conversation (a follow-up that is running or needs input)
+		// overrides the run's history until the history catches up.
+		const withLocalProgress = (run: IAutomationRun, reader: IReader) => automationRunWithLocalProgress(run, chatService.chatModels.read(reader), reader);
 
 		this.rows = derived(this, reader => {
 			providersChanged.read(reader);
 			automationService.availableProviders.read(reader);
 			const runs = automationService.runs.read(reader);
-			const real = automationService.automations.read(reader).map(automation => this.toRow(automation, runs.find(run => run.automationId === automation.id)));
+			const real = automationService.automations.read(reader).map(automation => {
+				const latestRun = runs.find(run => run.automationId === automation.id);
+				return this.toRow(automation, latestRun && withLocalProgress(latestRun, reader));
+			});
 			return [...real, ...this.sample.read(reader)?.rows ?? []];
 		});
 
 		this.runs = derived(this, reader => {
 			sessionsChanged.read(reader);
-			const real = automationService.runs.read(reader).map((run): IAutomationLayoutRun => {
+			const real = automationService.runs.read(reader).map((historyRun): IAutomationLayoutRun => {
+				const run = withLocalProgress(historyRun, reader);
 				const session = run.sessionResource ? sessionsManagementService.getSession(run.sessionResource) : undefined;
 				const automationName = automationService.getAutomation(run.automationId)?.name
 					?? automationService.getAutomationHistoryName?.(run.automationId)
@@ -305,7 +319,7 @@ class AutomationsLayoutModel extends Disposable {
 				if (state === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput) {
 					state = 'needsInput';
 				}
-				const time = Date.parse(run.completedAt ?? run.updatedAt ?? run.startedAt);
+				const time = getRunTime(run, state);
 				return {
 					id: run.id,
 					automationId: run.automationId,
@@ -351,7 +365,8 @@ class AutomationsLayoutModel extends Disposable {
 			: localize('automationsLayout.cloudHost', "Cloud");
 		const triggers = automation.cloudTrigger?.triggers ?? {};
 		const triggerSummary = automationTriggerSummary(triggers);
-		const runTime = latestRun ? Date.parse(latestRun.completedAt ?? latestRun.updatedAt ?? latestRun.startedAt) : Number.NaN;
+		const latestRunState = latestRun && getAutomationRunState(latestRun);
+		const runTime = latestRun && latestRunState ? getRunTime(latestRun, latestRunState) : Number.NaN;
 		const lastRunAt = automation.lastRunAt ? Date.parse(automation.lastRunAt) : Number.NaN;
 		return {
 			id: automation.id,
@@ -366,8 +381,8 @@ class AutomationsLayoutModel extends Disposable {
 			hostKey,
 			hostLabel,
 			workspace: automation.targetDisplay?.label ?? (automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : undefined),
-			lastRun: latestRun && !Number.isNaN(runTime)
-				? { time: runTime, state: getAutomationRunState(latestRun) }
+			lastRun: latestRun && latestRunState && !Number.isNaN(runTime)
+				? { time: runTime, state: latestRunState }
 				: !Number.isNaN(lastRunAt) ? { time: lastRunAt, state: undefined } : undefined,
 			canRun: this.automationService.canRunAutomation(automation.id),
 			canUpdate: this.automationService.canUpdateAutomation(automation.id),
@@ -411,6 +426,10 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly sidebar: HTMLElement | undefined;
 	private composerInput: { getValue(): string; setValue(value: string): void; focus(): void } | undefined;
 	private rovingItems: HTMLElement[] = [];
+	/** The state each automation is being saved to, while its On or Off change is in flight. */
+	private readonly pendingToggles = new Map<string, boolean>();
+	/** The rendered switch of each automation row, so a finished save can update it after a re-render. */
+	private readonly rowSwitches = new Map<string, Switch>();
 	private readonly navHovers = new Map<AutomationsNavId, { readonly key: string; readonly disposable: IDisposable }>();
 	private readonly idPrefix = `automations-layout-${generateUuid()}`;
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 60_000));
@@ -741,25 +760,28 @@ export class AutomationsLayoutWidget extends Disposable {
 		chatInput.inputEditor.updateOptions({ ariaLabel: localize('automationsLayout.composerAriaLabel', "Describe an automation to create in a new chat") });
 		layoutAutomationChatInput(chatInput, inputHost, this._store, 'automationsLayout.composer');
 
-		// The text stays until a chat opens, so a failed or pending send loses nothing. A second Enter on the same text
-		// waits for the first send for a while, so it can't start two chats, but a send that never settles (for
-		// example after a cancelled sign-in) doesn't block a retry for good.
-		let inFlight: { readonly goal: string; readonly since: number } | undefined;
+		// Each description is sent once at a time: Enter on text that is still being sent only says so, because a
+		// request can be dispatched before the send returns and can't be taken back. The text stays until the request
+		// is sent, so a failed send loses nothing, and then clears.
+		const sending = new Set<string>();
 		const send = async () => {
 			const goal = chatInput.inputEditor.getValue().trim();
-			if (!goal || (inFlight?.goal === goal && Date.now() - inFlight.since < SEND_RETRY_AFTER_MS)) {
+			if (!goal) {
 				return;
 			}
-			const current = inFlight = { goal, since: Date.now() };
+			if (sending.has(goal)) {
+				status(localize('automationsLayout.stillStarting', "Still starting the chat for this automation."));
+				return;
+			}
+			sending.add(goal);
 			try {
-				const opened = await this.actions.sendAutomationGoal(goal);
-				if (opened && !this._store.isDisposed && chatInput.inputEditor.getValue().trim() === goal) {
-					chatInput.inputEditor.setValue('');
-				}
+				await this.actions.sendAutomationGoal(goal, () => {
+					if (!this._store.isDisposed && chatInput.inputEditor.getValue().trim() === goal) {
+						chatInput.inputEditor.setValue('');
+					}
+				});
 			} finally {
-				if (inFlight === current) {
-					inFlight = undefined;
-				}
+				sending.delete(goal);
 			}
 		};
 		sendHandlers.set(widget, send);
@@ -1010,10 +1032,11 @@ export class AutomationsLayoutWidget extends Disposable {
 	//#region Panes
 
 	private renderPane(nav: AutomationsNavId, rows: readonly IAutomationLayoutRow[], runs: readonly IAutomationLayoutRun[], examples: readonly IAutomationLayoutExample[], query: string, filters: IAutomationsLayoutFilters, openSections: Readonly<Record<string, boolean>>, catalogueState: AutomationCatalogueState): void {
-		const focusKey = this.getFocusedContentKey();
+		const focused = this.getFocusedContent();
 		const scrollTop = this.scrollContainer.scrollTop;
 		this.contentDisposables.clear();
 		this.rovingItems = [];
+		this.rowSwitches.clear();
 		DOM.clearNode(this.content);
 		this.content.dataset.nav = nav;
 		this.paneContainer.setAttribute('aria-labelledby', `${this.idPrefix}-nav-${nav}`);
@@ -1050,7 +1073,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		}
 		this.resultCount.style.display = resultMessage ? '' : 'none';
 		this.scrollContainer.scrollTop = scrollTop;
-		this.restoreContentFocus(focusKey);
+		this.restoreContentFocus(focused);
 	}
 
 	private renderAutomationSections(nav: AutomationsNavId, sections: readonly IAutomationLayoutSection[], repository: string | undefined, openSections: Readonly<Record<string, boolean>>, searching: boolean): void {
@@ -1152,6 +1175,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			const runButton = store.add(new Button(actions, { supportIcons: true, ariaLabel: localize('automationsLayout.runNowNamed', "Run {0} now", row.name), title: localize('automationsLayout.runNow', "Run now") }));
 			runButton.label = `$(${Codicon.play.id})`;
 			runButton.element.classList.add('automations-layout-icon-button');
+			runButton.element.dataset.control = 'run';
 			runButton.enabled = row.canRun;
 			runButton.element.tabIndex = -1;
 			store.add(runButton.onDidClick(event => {
@@ -1165,6 +1189,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		const moreButton = store.add(new Button(actions, { supportIcons: true, ariaLabel: localize('automationsLayout.moreNamed', "More actions for {0}", row.name), title: localize('automationsLayout.more', "More actions") }));
 		moreButton.label = `$(${Codicon.kebabVertical.id})`;
 		moreButton.element.classList.add('automations-layout-icon-button');
+		moreButton.element.dataset.control = 'more';
 		moreButton.element.setAttribute('aria-haspopup', 'menu');
 		moreButton.element.tabIndex = -1;
 		store.add(moreButton.onDidClick(event => {
@@ -1177,9 +1202,11 @@ export class AutomationsLayoutWidget extends Disposable {
 		const toggle = store.add(new Switch({
 			ariaLabel: localize('automationsLayout.switchAria', "{0} on", row.name),
 			title: row.enabled ? localize('automationsLayout.switchOn', "On") : localize('automationsLayout.switchOff', "Off"),
-			checked: row.enabled,
+			checked: this.pendingToggles.get(row.id) ?? row.enabled,
 			disabled: !row.canUpdate,
 		}));
+		this.rowSwitches.set(row.id, toggle);
+		toggle.domNode.dataset.control = 'enabled';
 		toggle.domNode.tabIndex = -1;
 		switchCell.appendChild(toggle.domNode);
 		store.add(DOM.addDisposableListener(switchCell, DOM.EventType.CLICK, event => event.stopPropagation()));
@@ -1309,6 +1336,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			const use = this.contentDisposables.add(new Button(element, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.useNamed', "Use {0}", example.template.name) }));
 			use.label = localize('automationsLayout.use', "Use");
 			use.element.classList.add('automations-layout-use-button');
+			use.element.dataset.control = 'use';
 			use.element.tabIndex = -1;
 			controlElements.set(element, [use.element]);
 			const useExample = () => void this.actions.createFromTemplate(example.template);
@@ -1383,9 +1411,19 @@ export class AutomationsLayoutWidget extends Disposable {
 			this.actions.showSampleNotice();
 			return;
 		}
+		// One save per automation at a time: a toggle while one is saving is ignored, so the later request
+		// can't race the earlier one and leave the automation in the wrong state.
+		const pending = this.pendingToggles.get(row.id);
+		if (pending !== undefined) {
+			toggle.checked = pending;
+			return;
+		}
+		this.pendingToggles.set(row.id, enabled);
 		void this.actions.setEnabled(row.automation, enabled).finally(() => {
-			if (!this._store.isDisposed) {
-				toggle.checked = this.automationService.getAutomation(row.id)?.enabled ?? row.enabled;
+			this.pendingToggles.delete(row.id);
+			const current = this.rowSwitches.get(row.id);
+			if (!this._store.isDisposed && current) {
+				current.checked = this.automationService.getAutomation(row.id)?.enabled ?? row.enabled;
 			}
 		});
 	}
@@ -1519,22 +1557,41 @@ export class AutomationsLayoutWidget extends Disposable {
 		}
 	}
 
-	private getFocusedContentKey(): string | undefined {
+	/** The focused list item, and which of its controls has focus (-1 for the item itself). */
+	private getFocusedContent(): IFocusedContent | undefined {
 		const active = DOM.getActiveElement();
 		if (!DOM.isHTMLElement(active) || !this.content.contains(active)) {
 			return undefined;
 		}
-		return this.findRovingItem(active)?.dataset.key;
+		const item = this.findRovingItem(active);
+		const key = item?.dataset.key;
+		if (!item || !key) {
+			return undefined;
+		}
+		const controls = controlElements.get(item) ?? [];
+		return { key, control: controls.find(control => control === active || control.contains(active))?.dataset.control };
 	}
 
-	private restoreContentFocus(key: string | undefined): void {
+	/** Puts focus back on the same item and control after a re-render, so Enter keeps doing the same thing. */
+	private restoreContentFocus(focused: IFocusedContent | undefined): void {
 		const items = this.getRovingItems();
-		const target = key ? items.find(item => item.dataset.key === key) : undefined;
+		const target = focused ? items.find(item => item.dataset.key === focused.key) : undefined;
 		const tabStop = target ?? items[0];
 		for (const item of items) {
 			item.tabIndex = item === tabStop ? 0 : -1;
 		}
-		if (key) {
+		if (!focused) {
+			return;
+		}
+		// By name rather than position, so a row that gains or loses Run now keeps focus on the same control.
+		const control = target && focused.control ? controlElements.get(target)?.find(candidate => candidate.dataset.control === focused.control) : undefined;
+		if (target && control) {
+			// A row's actions are hidden until the row has focus; show them while focus moves to one of them.
+			target.classList.add('restoring-focus');
+			control.focus();
+			target.classList.remove('restoring-focus');
+		}
+		if (!control || DOM.getActiveElement() !== control) {
 			(target ?? items[0])?.focus();
 		}
 	}
@@ -1542,6 +1599,13 @@ export class AutomationsLayoutWidget extends Disposable {
 	//#endregion
 }
 
+
+/** When a run last changed: its latest update while it's running, otherwise when it finished. NaN when unknown. */
+function getRunTime(run: IAutomationRun, state: AutomationRunState): number {
+	return Date.parse(state === 'running' || state === 'needsInput'
+		? run.updatedAt ?? run.startedAt
+		: run.completedAt ?? run.updatedAt ?? run.startedAt);
+}
 
 function hostOrder(hostKey: string): number {
 	return hostKey === LOCAL_AUTOMATION_HOST ? 0 : hostKey === CLOUD_AUTOMATION_HOST ? 2 : 1;
