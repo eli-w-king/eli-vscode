@@ -48,6 +48,10 @@ export const AgentsWindowMenus = {
 	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Target controls above the Automation dialog prompt editor. */
 	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
+	/** Send action of the chat input on top of the experimental `chatInput` Automations layout. */
+	AutomationsLayoutInputExecute: new MenuId('AutomationsLayoutInputExecute'),
+	/** Left toolbar of that chat input; empty, so the input shows no pickers. */
+	AutomationsLayoutInputToolbar: new MenuId('AutomationsLayoutInputToolbar'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),

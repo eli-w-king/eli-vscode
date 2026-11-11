@@ -54,7 +54,9 @@ import { registerExternalSessionsFilterMenu } from '../../../../../workbench/con
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { MANAGE_AUTOMATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { openAutomations } from './automationsManagementEditor.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -2207,13 +2209,13 @@ registerWorkbenchContribution2(SessionsArchiveActionsContribution.ID, SessionsAr
 registerAction2(class ManageAutomationsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.manageAutomations',
+			id: MANAGE_AUTOMATIONS_COMMAND_ID,
 			title: localize2('manageAutomations', "Manage Automations"),
 			menu: []
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return openAutomations(accessor.get(IConfigurationService), accessor.get(IEditorService), accessor.get(ICustomViewService));
 	}
 });
 

@@ -35,7 +35,9 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_LAYOUT_SETTING, ChatAutomationsEnabledContext, toAutomationsLayout } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { AutomationsLayoutWidget } from './automationsLayoutWidget.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -83,6 +85,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
 import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
@@ -108,14 +111,8 @@ export const DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY = 'sessions.automations.d
 /** Onboarding spotlight targets, referenced by the Get Started checklist tours. */
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
-const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
-const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
-const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
-const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
 const AutomationRunHistoryStateContext = new RawContextKey<string>('sessionsAutomationRunHistoryState', '');
 const AutomationRunCanDeleteHistoryContext = new RawContextKey<boolean>('sessionsAutomationRunCanDeleteHistory', false);
-const AutomationCardIsCloudContext = new RawContextKey<boolean>('sessionsAutomationCardIsCloud', false);
-const AutomationCardHasEventTriggerContext = new RawContextKey<boolean>('sessionsAutomationCardHasEventTrigger', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -2603,21 +2600,39 @@ export class AutomationsCustomView extends AbstractCustomView {
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
-	private _widget: AutomationsCardsWidget | undefined;
+	private _widget: AutomationsCardsWidget | AutomationsLayoutWidget | undefined;
+	private _size: { readonly width: number; readonly height: number } | undefined;
+	/** The experimental `chatInput` layout replaces the cards with a chat input over tabs. */
+	private readonly _chatInputLayout: IObservable<boolean>;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._chatInputLayout = observableConfigValue<unknown>(CHAT_AUTOMATIONS_LAYOUT_SETTING, 'page', configurationService)
+			.map(layout => toAutomationsLayout(layout) === 'chatInput');
 	}
 
 	render(container: HTMLElement): void {
-		container.classList.add('automations-cards-content');
-		this._widget = this._register(this.instantiationService.createInstance(AutomationsCardsWidget));
-		container.appendChild(this._widget.element);
+		this._register(autorun(reader => {
+			const chatInput = this._chatInputLayout.read(reader);
+			DOM.clearNode(container);
+			container.classList.toggle('automations-cards-content', !chatInput);
+			container.classList.toggle('automations-layout-page', chatInput);
+			const widget = chatInput
+				? reader.store.add(this.instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'chatInput' }))
+				: reader.store.add(this.instantiationService.createInstance(AutomationsCardsWidget));
+			this._widget = widget;
+			container.appendChild(widget.element);
+			if (this._size) {
+				widget.layout(this._size.width, this._size.height);
+			}
+		}));
 	}
 
 	layout(width: number, height: number): void {
+		this._size = { width, height };
 		this._widget?.layout(width, height);
 	}
 
@@ -2946,7 +2961,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('newAutomation', "New Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext, ContextKeyExpr.notEquals(`config.${CHAT_AUTOMATIONS_LAYOUT_SETTING}`, 'chatInput')) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
