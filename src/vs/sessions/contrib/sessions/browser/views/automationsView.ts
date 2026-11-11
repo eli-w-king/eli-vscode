@@ -2601,6 +2601,8 @@ export class AutomationsCustomView extends AbstractCustomView {
 		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
 	private _widget: AutomationsCardsWidget | AutomationsLayoutWidget | undefined;
+	private readonly _layoutWidget = observableValue<AutomationsLayoutWidget | undefined>(this, undefined);
+	override readonly titleAccessory: IObservable<HTMLElement | undefined> = derived(this, reader => this._layoutWidget.read(reader)?.titleAccessory.read(reader));
 	private _size: { readonly width: number; readonly height: number } | undefined;
 	/** The experimental `chatInput` layout replaces the cards with a chat input over tabs. */
 	private readonly _chatInputLayout: IObservable<boolean>;
@@ -2624,6 +2626,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 				? reader.store.add(this.instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'chatInput' }))
 				: reader.store.add(this.instantiationService.createInstance(AutomationsCardsWidget));
 			this._widget = widget;
+			this._layoutWidget.set(widget instanceof AutomationsLayoutWidget ? widget : undefined, undefined);
 			container.appendChild(widget.element);
 			if (this._size) {
 				widget.layout(this._size.width, this._size.height);

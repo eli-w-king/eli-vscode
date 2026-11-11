@@ -68,9 +68,8 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatInputPartOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
-import { createAutomationChatInput, layoutAutomationChatInput } from './automationChatInput.js';
+import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -1840,6 +1839,11 @@ export function renderForm(
 		}), loadingHoverLifecycleOptions));
 	}
 
+	const chatInputStyles: IChatInputStyles = {
+		overlayBackground: 'var(--vscode-input-background)',
+		listForeground: 'var(--vscode-foreground)',
+		listBackground: 'var(--vscode-input-background)',
+	};
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -1869,7 +1873,23 @@ export function renderForm(
 		sessionTypePickerDelegate: sessionTypeDelegate,
 	};
 
-	const chatInput = createAutomationChatInput(scopedInstantiationService, promptHost, chatInputOptions, initialPrompt, disposables);
+	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
+	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
+
+	const stubWidget: IMinimalChatWidget = {
+		onDidChangeViewModel: Event.None,
+		viewModel: undefined,
+		contribs: [],
+		location: ChatAgentLocation.Chat,
+		viewContext: {},
+		lockToCodingAgent: () => { },
+		unlockFromCodingAgent: () => { },
+	};
+
+	const chatInput = disposables.add(
+		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
+	);
+	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 	const sessionConfigContainer = chatInput.inputToolbarElement;
@@ -1919,7 +1939,28 @@ export function renderForm(
 		revalidate();
 	}));
 
-	layoutAutomationChatInput(chatInput, promptHost, disposables, 'automationDialog.promptHost');
+	const layoutChatInput = () => {
+		const width = promptHost.getBoundingClientRect().width;
+		if (width > 0) {
+			chatInput.layout(width);
+		}
+	};
+	layoutChatInput();
+	queueMicrotask(() => {
+		if (!disposables.isDisposed) {
+			layoutChatInput();
+		}
+	});
+
+	const resizeObserver = disposables.add(new DOM.DisposableResizeObserver('automationDialog.promptHost', entries => {
+		for (const entry of entries) {
+			const width = entry.contentRect.width;
+			if (width > 0) {
+				chatInput.layout(width);
+			}
+		}
+	}, DOM.getWindow(promptHost)));
+	disposables.add(resizeObserver.observe(promptHost));
 
 	const providerOptions = DOM.append(promptSection, $('.automation-provider-options'));
 	const providerDetails = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));

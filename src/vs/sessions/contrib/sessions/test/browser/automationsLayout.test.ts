@@ -8,6 +8,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getSharedRepositoryLabel, groupAutomationRunsByDay, IAutomationLayoutRun } from '../../browser/views/automationsLayoutModel.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IAgentSkill, IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AutomationsLayoutActions } from '../../browser/views/automationsLayoutActions.js';
 import { getAutomationsSampleData } from '../../browser/views/automationsLayoutSampleData.js';
 import { describeAutomationSchedule, describeCronExpression, formatAutomationTime } from '../../browser/views/automationsLayoutSchedule.js';
 
@@ -188,6 +195,41 @@ suite('Automations layout model', () => {
 			groups: [['Today', ['a']], ['Yesterday', ['b']], ['Last week', ['c']]],
 			search: ['b'],
 			byAutomation: ['a'],
+		});
+	});
+});
+
+suite('Automations layout composer requests', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const skillUri = FileAccess.asFileUri('vs/sessions/skills/automate/SKILL.md');
+	const skill = upcastPartial<IAgentSkill>({ name: 'automate', storage: PromptsStorage.builtIn, uri: skillUri });
+
+	function createActions(disabled: readonly URI[] = []): AutomationsLayoutActions {
+		return Object.assign(Object.create(AutomationsLayoutActions.prototype) as AutomationsLayoutActions, {
+			promptsService: upcastPartial<IPromptsService>({ findAgentSkills: async () => [skill], getDisabledPromptFiles: () => new ResourceSet(disabled) }),
+			logService: new NullLogService(),
+		});
+	}
+
+	test('sends a description to /automate with the built-in skill attached once', async () => {
+		const actions = createActions();
+		const reference = { ...toFileVariableEntry(URI.file('/notes.md')), range: { start: 6, endExclusive: 15 } };
+		const typed = await actions.prepareAutomationRequest({ query: 'Every Friday at 4 PM, draft release notes', attachedContext: [] });
+		const withReference = await actions.prepareAutomationRequest({ query: 'Using #notes.md, draft release notes', attachedContext: [reference] });
+		const prefixed = await actions.prepareAutomationRequest({ query: '/automate Daily digest', attachedContext: typed.attachedContext });
+		const withoutSkill = await createActions([skillUri]).prepareAutomationRequest({ query: 'Daily digest', attachedContext: [] });
+		const referenced = withReference.attachedContext[0];
+		assert.deepStrictEqual({
+			typed: { query: typed.query, attachments: typed.attachedContext.map(entry => URI.isUri(entry.value) ? entry.value.toString() : entry.value) },
+			reference: { text: referenced.range && withReference.query.slice(referenced.range.start, referenced.range.endExclusive), attachments: withReference.attachedContext.length },
+			prefixed: { query: prefixed.query, attachments: prefixed.attachedContext.length },
+			withoutSkill: { query: withoutSkill.query, attachments: withoutSkill.attachedContext.length },
+		}, {
+			typed: { query: '/automate Every Friday at 4 PM, draft release notes', attachments: [skillUri.toString()] },
+			reference: { text: '#notes.md', attachments: 2 },
+			prefixed: { query: '/automate Daily digest', attachments: 1 },
+			withoutSkill: { query: '/automate Daily digest', attachments: 0 },
 		});
 	});
 });

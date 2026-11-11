@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -35,7 +36,9 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewSessionDraftSlot, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -57,6 +60,34 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 	override canDeleteAutomation(): boolean { return true; }
 }
 
+/**
+ * Stands in for the New Session composer that Design B hosts: the composer needs the whole Agents window (sessions,
+ * providers, models), so its own fixtures live under `sessions/chat/newWidget/`, and Code OSS shows it in place.
+ */
+class ComposerStandInView extends AbstractChatView {
+	override readonly kind = 'newSession';
+	private readonly content: HTMLElement;
+
+	constructor() {
+		super();
+		const container = this.element.appendChild($('.new-chat-widget-container'));
+		this.content = container.appendChild($('.new-chat-widget-content'));
+		const box = this.content.appendChild($('div', undefined, 'New Session composer (shown in Code OSS)'));
+		box.style.cssText = 'height: 116px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px dashed var(--vscode-widget-border, var(--vscode-contrastBorder)); border-radius: var(--vscode-cornerRadius-large); color: var(--vscode-descriptionForeground);';
+	}
+
+	override get inputContentElement(): HTMLElement {
+		return this.content;
+	}
+
+	protected override doLayout(): void { }
+
+	override toJSON(): object {
+		return {};
+	}
+
+	override focus(): void { }
+}
 interface ILayoutFixtureOptions {
 	readonly variant: 'modal' | 'chatInput';
 	readonly width: number;
@@ -123,10 +154,9 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
-			// The chat services also provide what the Design B composer (a real ChatInputPart) needs.
 			registerChatFixtureServices(reg);
 			registerWorkbenchServices(reg);
-			// The real menus, for the page header and the composer's send button.
+			// The real menus, for the page header.
 			reg.define(IMenuService, MenuService);
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
@@ -155,6 +185,13 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				override getSession() { return undefined; }
 				override getSessions() { return []; }
 				override isQuickChatTargetAvailable() { return false; }
+				override readonly onDidEndNewSessionRequest = Event.None;
+				override createNewSessionSlot(): INewSessionDraftSlot & { dispose(): void } {
+					return { id: 'fixture', newSession: constObservable(undefined), createNewSession: () => { throw new Error('not in fixtures'); }, createQuickChat: () => { throw new Error('not in fixtures'); }, discardNewSession: () => { }, dispose: () => { } };
+				}
+			}());
+			reg.defineInstance(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+				override createNewChatView(): AbstractChatView { return new ComposerStandInView(); }
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly gridShown = constObservable([]);

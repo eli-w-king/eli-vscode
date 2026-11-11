@@ -21,30 +21,32 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { autorun, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatExecuteActionContext } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -54,11 +56,14 @@ import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../..
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
-import { createAutomationChatInput, createAutomationChatInputWidget, layoutAutomationChatInput } from '../../../automations/browser/automationChatInput.js';
 import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { AUTOMATE_COMMAND_PREFIX, AutomationsLayoutActions } from './automationsLayoutActions.js';
@@ -84,32 +89,24 @@ const REPOSITORY_DESCRIPTION = localize('automationsLayout.repositoryDescription
 const DEFAULT_OPEN_SECTIONS: Readonly<Record<AutomationsSectionId, boolean>> = { personal: true, cloud: true, repository: false, disabled: false };
 const CODE_PLACEHOLDER = '\uE000';
 
-/** Set on the chat input at the top of the `chatInput` layout. */
-const AutomationsLayoutInputContext = new RawContextKey<boolean>('automationsLayoutInput', false);
-const SEND_AUTOMATION_GOAL_COMMAND_ID = 'sessions.automations.layout.send';
-const sendHandlers = new WeakMap<object, () => Promise<void>>();
-let focusedSendHandler: (() => Promise<void>) | undefined;
+/** Set on the new-session composer at the top of the `chatInput` layout. */
+const AutomationsLayoutComposerContext = new RawContextKey<boolean>('automationsLayoutComposer', false);
 
-registerAction2(class SendAutomationGoalAction extends Action2 {
+registerAction2(class CreateAutomationManuallyFromComposerAction extends Action2 {
 	constructor() {
 		super({
-			id: SEND_AUTOMATION_GOAL_COMMAND_ID,
-			title: localize2('automationsLayout.send', "Send"),
-			icon: Codicon.arrowUpCompact,
+			id: 'sessions.automations.layout.createManuallyFromComposer',
+			title: localize2('automationsLayout.createManually', "Create manually"),
+			tooltip: localize2('automationsLayout.createManuallyFromComposerTitle', "Create an automation with a form, starting from this description"),
 			f1: false,
-			precondition: ChatContextKeys.inputHasText,
-			keybinding: {
-				when: ContextKeyExpr.and(AutomationsLayoutInputContext, ChatContextKeys.inChatInput, ContextKeyExpr.not('suggestWidgetVisible')),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib + 10,
-			},
-			menu: { id: AgentsWindowMenus.AutomationsLayoutInputExecute, group: 'navigation', order: 1 },
+			// Next to Send (order 4), in the composer's own row.
+			menu: { id: MenuId.ChatExecute, group: 'navigation', order: 3, when: AutomationsLayoutComposerContext },
 		});
 	}
 
-	override async run(_accessor: ServicesAccessor, context?: { readonly widget?: object }): Promise<void> {
-		const handler = (context?.widget ? sendHandlers.get(context.widget) : undefined) ?? focusedSendHandler;
-		await handler?.();
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const actions = accessor.get(IInstantiationService).createInstance(AutomationsLayoutActions);
+		await actions.createManually(context?.widget?.getInput().trim() ?? '');
 	}
 });
 
@@ -397,6 +394,8 @@ class AutomationsLayoutModel extends Disposable {
 export class AutomationsLayoutWidget extends Disposable {
 
 	readonly element: HTMLElement;
+	/** Shown after the host's title: the `chatInput` layout's Sample data label, while sample data is on. */
+	readonly titleAccessory: IObservable<HTMLElement | undefined>;
 
 	private readonly model: AutomationsLayoutModel;
 	private readonly actions: AutomationsLayoutActions;
@@ -424,7 +423,7 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly splitView: SplitView<number> | undefined;
 	private readonly sidebar: HTMLElement | undefined;
-	private composerInput: { getValue(): string; setValue(value: string): void; focus(): void } | undefined;
+	private composerView: AbstractChatView | undefined;
 	private rovingItems: HTMLElement[] = [];
 	/** The state each automation is being saved to, while its On or Off change is in flight. */
 	private readonly pendingToggles = new Map<string, boolean>();
@@ -443,8 +442,12 @@ export class AutomationsLayoutWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService,
 		@ILogService private readonly logService: ILogService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 		this.model = this._register(instantiationService.createInstance(AutomationsLayoutModel));
@@ -455,6 +458,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.openSections = observableValue<Readonly<Record<string, boolean>>>(this, this.readOpenSections());
 
 		const modal = options.variant === 'modal';
+		this.titleAccessory = modal ? constObservable(undefined) : this.model.sampleDataEnabled.map(sample => sample ? this.sampleLabel : undefined);
 		this.element = $('.automations-layout');
 		this.element.classList.add(modal ? 'automations-layout-modal' : 'automations-layout-chat-input');
 
@@ -572,7 +576,6 @@ export class AutomationsLayoutWidget extends Disposable {
 			const tabsRow = DOM.append(this.element, $('.automations-layout-tabs-row'));
 			tabsRow.appendChild(this.navContainer);
 			const tools = DOM.append(tabsRow, $('.automations-layout-tabs-tools'));
-			tools.appendChild(this.sampleLabel);
 			tools.appendChild(this.toolbar);
 			this.element.appendChild(this.paneContainer);
 			const resizeObserver = this._register(new DOM.DisposableResizeObserver('automationsLayout.chatInput', entries => {
@@ -652,8 +655,8 @@ export class AutomationsLayoutWidget extends Disposable {
 	}
 
 	focus(): void {
-		if (this.composerInput) {
-			this.composerInput.focus();
+		if (this.composerView) {
+			this.composerView.focus();
 			return;
 		}
 		const selected = this.navItems.find(item => item.id === this.selectedNav.get());
@@ -725,89 +728,79 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	//#region Composer (chatInput)
 
+	/**
+	 * The composer of the New Session page, with its pickers and toolbar, in a draft slot of its own so it never takes
+	 * or replaces the main composer's draft. Each request goes to the /automate skill, and the started chat opens.
+	 */
 	private renderComposer(container: HTMLElement): void {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
-		ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
-		AutomationsLayoutInputContext.bindTo(scopedContextKeyService).set(true);
+		AutomationsLayoutComposerContext.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		const inputHost = DOM.append(container, $('.automations-layout-composer-input.interactive-session'));
-		this._register(markOnboardingTarget(inputHost, 'sessions.automations.create'));
-		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(DOM.getWindow(container)).appendChild($('.chat-editor-overflow.automations-layout-editor-overflow.monaco-editor'));
-		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-		const widget = createAutomationChatInputWidget();
-		const chatInput = createAutomationChatInput(scopedInstantiationService, inputHost, {
-			renderFollowups: false,
-			renderInputToolbarBelowInput: false,
-			// The composer only hands its text to a new chat, which has its own pickers.
-			renderSecondaryToolbar: false,
-			renderWorkingSet: false,
-			enableImplicitContext: false,
-			supportsChangingModes: false,
-			suppressModePreferredModel: true,
-			suppressModelPersistence: true,
-			menus: {
-				executeToolbar: AgentsWindowMenus.AutomationsLayoutInputExecute,
-				inputToolbar: AgentsWindowMenus.AutomationsLayoutInputToolbar,
-				telemetrySource: 'automations.layout',
+		this._register(markOnboardingTarget(container, 'sessions.automations.create'));
+		const slot = this.sessionsManagementService.createNewSessionSlot({ readoptOnFailure: () => !this._store.isDisposed });
+		const input = new ComposerInputSnapshot();
+		const view = this.composerView = this._register(this.chatViewFactory.createNewChatView(false, {
+			newSessionDraft: {
+				slot,
+				input,
+				openStartedSession: session => this.sessionsService.openSession(session.resource),
+				// The management service leaves the failures of an independent slot's background sends to its host.
+				trackBackgroundSend: send => {
+					const sent = input.get().attempt?.input ?? { inputText: send.query, attachments: send.attachedContext ?? [] };
+					return trackNewSessionRequestEnd(this.sessionsManagementService, slot, send.session, event => {
+						if (event.started || !event.error || isCancellationError(event.error) || event.error instanceof WorkspaceNotTrustedError) {
+							return;
+						}
+						const restored = send.isLatest() && input.restore(sent);
+						this.notificationService.notify({
+							severity: Severity.Error,
+							message: localize('automationsLayout.backgroundSendFailed', "Couldn't start the chat for this automation: {0}", toErrorMessage(event.error)),
+							actions: restored ? undefined : { primary: [toAction({ id: 'automationsLayout.copyPrompt', label: localize('automationsLayout.copyPrompt', "Copy Prompt"), run: () => this.clipboardService.writeText(sent.inputText) })] },
+						});
+					});
+				},
 			},
-			widgetViewKindTag: 'automations-layout',
-			isTransientChat: true,
-			inputEditorMinLines: 1,
-			inputPartHorizontalPadding: 0,
-			editorOverflowWidgetsDomNode,
-		}, '', this._store, widget);
-		chatInput.inputEditor.updateOptions({ placeholder: localize('automationsLayout.composerPlaceholder', "Describe an automation, like: Every Friday at 8 AM, summarize new experiment findings") });
-		chatInput.inputEditor.updateOptions({ ariaLabel: localize('automationsLayout.composerAriaLabel', "Describe an automation to create in a new chat") });
-		layoutAutomationChatInput(chatInput, inputHost, this._store, 'automationsLayout.composer');
-
-		// Each description is sent once at a time: Enter on text that is still being sent only says so, because a
-		// request can be dispatched before the send returns and can't be taken back. The text stays until the request
-		// is sent, so a failed send loses nothing, and then clears.
-		const sending = new Set<string>();
-		const send = async () => {
-			const goal = chatInput.inputEditor.getValue().trim();
-			if (!goal) {
+			renderChatPet: false,
+			renderAquarium: false,
+			newSessionCustomization: {
+				placeholder: localize('automationsLayout.composerPlaceholder', "Describe an automation, like: Every Friday at 8 AM, summarize new experiment findings"),
+				composerOnly: true,
+				prepareRequest: request => this.actions.prepareAutomationRequest(request),
+			},
+		}, scopedInstantiationService));
+		// After the view, so the composer is gone before its slot discards the draft.
+		this._register(slot);
+		container.appendChild(view.element);
+		view.setVisible(true);
+		// The started chat of a request sent in the foreground opens; Send in Background stays on the page.
+		this._register(this.sessionsManagementService.onDidAcceptNewSessionRequest(accepted => {
+			if (accepted.owner !== slot || accepted.background) {
 				return;
 			}
-			if (sending.has(goal)) {
-				status(localize('automationsLayout.stillStarting', "Still starting the chat for this automation."));
-				return;
-			}
-			sending.add(goal);
-			try {
-				await this.actions.sendAutomationGoal(goal, () => {
-					if (!this._store.isDisposed && chatInput.inputEditor.getValue().trim() === goal) {
-						chatInput.inputEditor.setValue('');
-					}
-				});
-			} finally {
-				sending.delete(goal);
+			this._register(trackNewSessionRequestEnd(this.sessionsManagementService, slot, accepted.session, ended => {
+				if (ended.started && !this._store.isDisposed) {
+					this.sessionsService.openSession(ended.session.resource).catch(onUnexpectedError);
+				}
+			}));
+		}));
+		// The composer is as tall as its content: the view is laid out to the height it measures.
+		const content = view.inputContentElement;
+		let laidOut: { width: number; height: number } | undefined;
+		const layoutComposer = () => {
+			const width = container.clientWidth;
+			const height = Math.ceil(content?.getBoundingClientRect().height ?? 0);
+			if (width > 0 && (laidOut?.width !== width || laidOut.height !== height)) {
+				laidOut = { width, height };
+				container.style.height = `${height}px`;
+				view.layout(width, height, 0, 0);
 			}
 		};
-		sendHandlers.set(widget, send);
-		this._register(chatInput.inputEditor.onDidFocusEditorText(() => focusedSendHandler = send));
-		this._register(chatInput.inputEditor.onDidBlurEditorText(() => {
-			if (focusedSendHandler === send) {
-				focusedSendHandler = undefined;
-			}
-		}));
-		this._register(toDisposable(() => {
-			if (focusedSendHandler === send) {
-				focusedSendHandler = undefined;
-			}
-		}));
-		this.composerInput = {
-			getValue: () => chatInput.inputEditor.getValue(),
-			setValue: value => chatInput.inputEditor.setValue(value),
-			focus: () => chatInput.focus(),
-		};
-
-		const manualButton = this._register(new Button(container, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.createManually', "Create manually"), title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
-		manualButton.label = localize('automationsLayout.createManually', "Create manually");
-		manualButton.element.classList.add('automations-layout-composer-manual');
-		this._register(manualButton.onDidClick(() => void this.actions.createManually(chatInput.inputEditor.getValue().trim())));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AutomationsLayoutComposer', layoutComposer, DOM.getWindow(container)));
+		this._register(resizeObserver.observe(container));
+		if (content) {
+			this._register(resizeObserver.observe(content));
+		}
 	}
-
 	//#endregion
 
 	//#region Navigation

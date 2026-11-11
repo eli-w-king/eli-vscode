@@ -6,7 +6,7 @@
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,8 +33,8 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../w
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionRequestDraft } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 import type { IAutomationTemplate } from './automationTemplates.js';
 
@@ -84,7 +84,6 @@ export class AutomationsLayoutActions {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -102,49 +101,24 @@ export class AutomationsLayoutActions {
 	}
 
 	/**
-	 * Sends `/automate <goal>` to a new chat without a workspace, with the built-in skill attached, as the
-	 * Start Chat form does. When that handoff can't run here, a new session sends the same text instead. A failed
-	 * send is reported rather than retried, so it never sends twice. `onSent` runs once the request is sent, before
-	 * the chat opens. Returns whether a chat opened.
+	 * Turns what the composer of the `chatInput` layout sends into `/automate <description>`, with the built-in skill
+	 * attached as the Start Chat form does. A description that already starts with `/automate` is sent as typed.
 	 */
-	async sendAutomationGoal(goal: string, onSent?: () => void): Promise<boolean> {
-		const query = `${AUTOMATE_COMMAND_PREFIX}${goal}`;
-		let sent = false;
-		try {
-			const skill = await this.findAutomateSkill();
-			if (skill) {
-				const session = await this.sessionsManagementService.createAndSendQuickChatRequest({
-					query,
-					attachedContext: [toPromptFileVariableEntry(skill.uri, PromptFileVariableKind.PromptFile)],
-				}, undefined, CancellationToken.None);
-				if (!session) {
-					throw new Error(localize('automationsLayout.chatUnconfirmed', "The provider did not confirm the new chat. Check your sessions before retrying."));
-				}
-				sent = true;
-				onSent?.();
-				await this.sessionsService.openSession(session.resource);
-			} else {
-				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { prompt: query } satisfies INewSessionInAgentsWindowOptions);
-				sent = true;
-				onSent?.();
-			}
-			return true;
-		} catch (error) {
-			if (sent || !isCancellationError(error)) {
-				this.logService.error('[AutomationsLayout] Could not start the automation chat.', error);
-				this.notificationService.error(sent
-					? localize('automationsLayout.chatOpenFailed', "The chat for this automation started, but it couldn't be opened: {0}", getErrorMessage(error))
-					: localize('automationsLayout.chatFailed', "Couldn't start a chat for this automation: {0}", getErrorMessage(error)));
-			}
-			return false;
+	async prepareAutomationRequest(request: INewSessionRequestDraft): Promise<INewSessionRequestDraft> {
+		const query = request.query.trimStart();
+		const prefixed = /^\/automate(\s|$)/.test(query) ? query : `${AUTOMATE_COMMAND_PREFIX}${query}`;
+		// Inline references keep pointing at the text they stand for.
+		const offset = prefixed.length - request.query.length;
+		const attachedContext = offset ? request.attachedContext.map(entry => entry.range ? { ...entry, range: { start: entry.range.start + offset, endExclusive: entry.range.endExclusive + offset } } : entry) : request.attachedContext;
+		const skill = await this.findAutomateSkill();
+		if (!skill || attachedContext.some(entry => URI.isUri(entry.value) && isEqual(entry.value, skill.uri))) {
+			return { query: prefixed, attachedContext };
 		}
+		return { query: prefixed, attachedContext: [...attachedContext, toPromptFileVariableEntry(skill.uri, PromptFileVariableKind.PromptFile)] };
 	}
 
-	/** The built-in /automate skill, when a chat without a workspace can use it. */
+	/** The built-in /automate skill, unless the user disabled it. */
 	private async findAutomateSkill(): Promise<IAgentSkill | undefined> {
-		if (!this.sessionsManagementService.isQuickChatTargetAvailable()) {
-			return undefined;
-		}
 		try {
 			// The same file as `BUILTIN_SKILLS_URI` in sessions/contrib/chat/browser/promptsService.ts. That module
 			// resolves its URI on import, which fails in hosts without module URIs such as the Component Explorer,
@@ -154,7 +128,7 @@ export class AutomationsLayoutActions {
 				candidate.name === 'automate' && candidate.storage === PromptsStorage.builtIn && isEqual(candidate.uri, skillUri));
 			return skill && !this.promptsService.getDisabledPromptFiles(PromptsType.skill).has(skill.uri) ? skill : undefined;
 		} catch (error) {
-			this.logService.warn('[AutomationsLayout] Could not look up the /automate skill; sending from a new session instead.', error);
+			this.logService.warn('[AutomationsLayout] Could not look up the /automate skill; sending without it.', error);
 			return undefined;
 		}
 	}
