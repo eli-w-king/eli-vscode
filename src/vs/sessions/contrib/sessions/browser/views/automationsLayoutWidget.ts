@@ -415,6 +415,7 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly sampleLabel: HTMLElement;
 	private readonly searchBox: InputBox;
 	private readonly filterButton: Button;
+	private filterTitle = localize('automationsLayout.filterTitle', "Filter");
 	private readonly markAllButton: Button;
 	private readonly createButtons: HTMLElement | undefined;
 	private readonly resultCount: HTMLElement;
@@ -503,7 +504,9 @@ export class AutomationsLayoutWidget extends Disposable {
 				this.focusFirstContentItem();
 			}
 		}));
-		this.filterButton = this._register(new Button(this.toolbar, { supportIcons: true, ariaLabel: localize('automationsLayout.filter', "Filter automations"), title: localize('automationsLayout.filterTitle', "Filter") }));
+		this.filterButton = this._register(new Button(this.toolbar, { supportIcons: true, ariaLabel: localize('automationsLayout.filter', "Filter automations") }));
+		// A pointer-only hover: a title would show again each time the filter menu gives focus back to the button.
+		this._register(this.hoverService.setupDelayedHover(this.filterButton.element, () => ({ content: this.filterTitle, style: HoverStyle.Pointer })));
 		this.filterButton.element.classList.add('automations-layout-icon-button', 'automations-layout-filter-button');
 		this.filterButton.element.setAttribute('aria-haspopup', 'menu');
 		this._register(this.filterButton.onDidClick(() => this.showFilterMenu()));
@@ -924,7 +927,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		const active = isAutomationsFilterActive(filters);
 		this.filterButton.label = `$(${active ? Codicon.filterFilled.id : Codicon.filter.id})`;
 		this.filterButton.element.classList.toggle('active', active);
-		this.filterButton.setTitle(active ? localize('automationsLayout.filterActive', "Filter (filters applied)") : localize('automationsLayout.filterTitle', "Filter"));
+		this.filterTitle = active ? localize('automationsLayout.filterActive', "Filter (filters applied)") : localize('automationsLayout.filterTitle', "Filter");
 		const placeholder = nav === 'runs'
 			? localize('automationsLayout.searchRuns', "Search runs")
 			: nav === 'examples' ? localize('automationsLayout.searchExamples', "Search examples") : localize('automationsLayout.searchPlaceholder', "Search automations");
