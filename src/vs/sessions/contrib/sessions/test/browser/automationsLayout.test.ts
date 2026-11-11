@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getSharedRepositoryLabel, groupAutomationRunsByDay, IAutomationLayoutRun } from '../../browser/views/automationsLayoutModel.js';
+import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -121,6 +121,10 @@ suite('Automations layout model', () => {
 			automation('shared', { ownership: 'repository' }),
 			automation('event', { cloudTrigger: { triggers: { pull_request_opened: { types: ['opened'] } } } }),
 		].map(item => classifyAutomation(item, isCloudProvider)), ['personal', 'personal', 'cloud', 'cloud', 'repository', 'cloud']);
+	});
+
+	test('sample automations on this machine show the label real local automations show', () => {
+		assert.deepStrictEqual([...new Set(sample.rows.filter(row => row.hostKey === LOCAL_AUTOMATION_HOST).map(row => row.hostLabel))], [getThisMachineLabel()]);
 	});
 
 	test('counts leave out disabled automations, and Runs counts unread runs', () => {

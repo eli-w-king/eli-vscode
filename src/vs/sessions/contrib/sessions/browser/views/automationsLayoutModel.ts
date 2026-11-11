@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationScheduleDescription } from './automationsLayoutSchedule.js';
@@ -22,6 +23,13 @@ export type AutomationStatusFilter = 'on' | 'off' | 'failed';
 export const LOCAL_AUTOMATION_HOST = 'local';
 /** Filter key for automations that run on GitHub. */
 export const CLOUD_AUTOMATION_HOST = 'cloud';
+
+/** How the layouts name the machine they run on, such as "This Mac" or "This PC". */
+export function getThisMachineLabel(): string {
+	return isMacintosh
+		? localize('automationsLayout.thisMac', "This Mac")
+		: isWindows ? localize('automationsLayout.thisPC', "This PC") : localize('automationsLayout.thisComputer', "This computer");
+}
 
 /** One automation as a row of the experimental layouts. */
 export interface IAutomationLayoutRow {

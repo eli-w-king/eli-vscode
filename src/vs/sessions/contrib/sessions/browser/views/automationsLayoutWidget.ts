@@ -26,7 +26,6 @@ import { isCancellationError, onUnexpectedError } from '../../../../../base/comm
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -67,7 +66,7 @@ import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWind
 import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { AUTOMATE_COMMAND_PREFIX, AutomationsLayoutActions } from './automationsLayoutActions.js';
-import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunState, getSharedRepositoryLabel, groupAutomationRunsByDay, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
+import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunState, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { getAutomationsSampleData, IAutomationsSampleData, sampleAutomationRunsRead } from './automationsLayoutSampleData.js';
 import { describeAutomationSchedule } from './automationsLayoutSchedule.js';
 import { readAutomationTemplates } from './automationTemplates.js';
@@ -239,12 +238,6 @@ function getRunStateDescription(state: AutomationRunState | undefined): string |
 		case 'needsInput': return localize('automationsLayout.runState.needsInput', "needs input");
 		default: return undefined;
 	}
-}
-
-function getThisMachineLabel(): string {
-	return isMacintosh
-		? localize('automationsLayout.thisMac', "This Mac")
-		: isWindows ? localize('automationsLayout.thisPC', "This PC") : localize('automationsLayout.thisComputer', "This computer");
 }
 
 /** Appends `text`, rendering `/automate` as code wherever {@link CODE_PLACEHOLDER} appears. */

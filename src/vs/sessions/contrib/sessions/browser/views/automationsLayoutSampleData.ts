@@ -13,7 +13,7 @@ import { localize } from '../../../../../nls.js';
 import type { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
-import { AutomationGroupId, AutomationRunState, CLOUD_AUTOMATION_HOST, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
+import { AutomationGroupId, AutomationRunState, CLOUD_AUTOMATION_HOST, getThisMachineLabel, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { describeAutomationSchedule, IAutomationScheduleDescription } from './automationsLayoutSchedule.js';
 
 /** Sample runs marked as read, shared by every open layout until the window reloads. */
@@ -63,11 +63,12 @@ function weekdays(hour: number, minute = 0): IAutomationSchedule {
 }
 
 function getSampleAutomations(): readonly ISampleAutomation[] {
-	const thisMac = localize('automationsSample.thisMac', "This Mac");
+	// The machine's own label, the same one real automations on this machine show.
+	const thisMachine = getThisMachineLabel();
 	const cloud = localize('automationsSample.cloud', "Cloud");
 	return [
-		{ id: 'sample.experimentDigest', name: localize('automationsSample.experimentDigest', "Experiment findings digest"), prompt: localize('automationsSample.experimentDigest.prompt', "Summarize this week's new experiment findings and list the ones that need a decision."), group: 'personal', schedule: weekly(5, 8), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMac, workspace: 'vscode' },
-		{ id: 'sample.inboxTriage', name: localize('automationsSample.inboxTriage', "Morning inbox triage"), prompt: localize('automationsSample.inboxTriage.prompt', "Sort this morning's notifications into needs a reply, FYI and ignore, and draft short replies."), group: 'personal', schedule: weekdays(8, 30), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMac },
+		{ id: 'sample.experimentDigest', name: localize('automationsSample.experimentDigest', "Experiment findings digest"), prompt: localize('automationsSample.experimentDigest.prompt', "Summarize this week's new experiment findings and list the ones that need a decision."), group: 'personal', schedule: weekly(5, 8), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMachine, workspace: 'vscode' },
+		{ id: 'sample.inboxTriage', name: localize('automationsSample.inboxTriage', "Morning inbox triage"), prompt: localize('automationsSample.inboxTriage.prompt', "Sort this morning's notifications into needs a reply, FYI and ignore, and draft short replies."), group: 'personal', schedule: weekdays(8, 30), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMachine },
 		{ id: 'sample.variationLab', name: localize('automationsSample.variationLab', "Nightly variation lab"), prompt: localize('automationsSample.variationLab.prompt', "Build tonight's design variations, check them at every size, and post the contact sheets."), group: 'personal', schedule: daily(1), hostKey: DEVBOX1, hostLabel: 'DevBox1' },
 		{ id: 'sample.skillsSync', name: localize('automationsSample.skillsSync', "Skills sync"), prompt: localize('automationsSample.skillsSync.prompt', "Pull the latest skills, validate them, and sync them to this machine."), group: 'personal', schedule: daily(10), hostKey: DEVBOX1, hostLabel: 'DevBox1' },
 		{ id: 'sample.studyHarvest', name: localize('automationsSample.studyHarvest', "Outset study harvest"), prompt: localize('automationsSample.studyHarvest.prompt', "Collect new study responses and add them to the research notes."), group: 'personal', schedule: { interval: 'hourly', scheduleDay: 0, scheduleHour: 0, scheduleMinute: 0 }, hostKey: DEVBOX2, hostLabel: 'DevBox2' },
@@ -78,7 +79,7 @@ function getSampleAutomations(): readonly ISampleAutomation[] {
 		{ id: 'sample.dependencyAudit', name: localize('automationsSample.dependencyAudit', "Dependency audit"), prompt: localize('automationsSample.dependencyAudit.prompt', "Check dependencies for advisories and outdated versions, and draft an update plan."), group: 'repository', schedule: weekly(1, 6), hostKey: CLOUD_AUTOMATION_HOST, hostLabel: cloud, workspace: SHARED_REPOSITORY },
 		{ id: 'sample.releaseNotes', name: localize('automationsSample.releaseNotes', "Release notes draft"), prompt: localize('automationsSample.releaseNotes.prompt', "Draft release notes from the pull requests merged since the last release."), group: 'repository', schedule: { interval: 'cron', cronExpression: '15 7 1,15 * *', scheduleDay: 0, scheduleHour: 0, scheduleMinute: 0 }, hostKey: CLOUD_AUTOMATION_HOST, hostLabel: cloud, workspace: SHARED_REPOSITORY },
 		{ id: 'sample.stalePrNudge', name: localize('automationsSample.stalePrNudge', "Stale PR nudge"), prompt: localize('automationsSample.stalePrNudge.prompt', "Check the author's other open pull requests and nudge the ones without activity for a week."), group: 'repository', schedule: 'pullRequestOpened', hostKey: CLOUD_AUTOMATION_HOST, hostLabel: cloud, workspace: SHARED_REPOSITORY },
-		{ id: 'sample.perfReport', name: localize('automationsSample.perfReport', "Weekly perf report"), prompt: localize('automationsSample.perfReport.prompt', "Compare this week's startup and memory numbers with last week's and summarize the changes."), group: 'personal', schedule: weekly(1, 9), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMac, workspace: 'vscode', enabled: false },
+		{ id: 'sample.perfReport', name: localize('automationsSample.perfReport', "Weekly perf report"), prompt: localize('automationsSample.perfReport.prompt', "Compare this week's startup and memory numbers with last week's and summarize the changes."), group: 'personal', schedule: weekly(1, 9), hostKey: LOCAL_AUTOMATION_HOST, hostLabel: thisMachine, workspace: 'vscode', enabled: false },
 		{ id: 'sample.flakyTests', name: localize('automationsSample.flakyTests', "Flaky test report"), prompt: localize('automationsSample.flakyTests.prompt', "List the tests that failed and then passed on a rerun this week, with links to the runs."), group: 'repository', schedule: weekly(5, 10), hostKey: CLOUD_AUTOMATION_HOST, hostLabel: cloud, workspace: SHARED_REPOSITORY, enabled: false },
 	];
 }
