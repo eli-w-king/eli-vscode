@@ -6,7 +6,7 @@
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { getErrorMessage, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -28,7 +28,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
@@ -103,33 +103,52 @@ export class AutomationsLayoutActions {
 
 	/**
 	 * Sends `/automate <goal>` to a new chat without a workspace, with the built-in skill attached, as the
-	 * Start Chat form does. Falls back to a new session that sends the same text.
+	 * Start Chat form does. When that handoff can't run here, a new session sends the same text instead. A failed
+	 * send is reported rather than retried, so it never sends twice. Returns whether a chat opened.
 	 */
-	async sendAutomationGoal(goal: string): Promise<void> {
+	async sendAutomationGoal(goal: string): Promise<boolean> {
 		const query = `${AUTOMATE_COMMAND_PREFIX}${goal}`;
+		try {
+			const skill = await this.findAutomateSkill();
+			if (skill) {
+				const session = await this.sessionsManagementService.createAndSendQuickChatRequest({
+					query,
+					attachedContext: [toPromptFileVariableEntry(skill.uri, PromptFileVariableKind.PromptFile)],
+				}, undefined, CancellationToken.None);
+				if (!session) {
+					throw new Error(localize('automationsLayout.chatUnconfirmed', "The provider did not confirm the new chat. Check your sessions before retrying."));
+				}
+				await this.sessionsService.openSession(session.resource);
+			} else {
+				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { prompt: query } satisfies INewSessionInAgentsWindowOptions);
+			}
+			return true;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[AutomationsLayout] Could not start the automation chat.', error);
+				this.notificationService.error(localize('automationsLayout.chatFailed', "Couldn't start a chat for this automation: {0}", getErrorMessage(error)));
+			}
+			return false;
+		}
+	}
+
+	/** The built-in /automate skill, when a chat without a workspace can use it. */
+	private async findAutomateSkill(): Promise<IAgentSkill | undefined> {
+		if (!this.sessionsManagementService.isQuickChatTargetAvailable()) {
+			return undefined;
+		}
 		try {
 			// The same file as `BUILTIN_SKILLS_URI` in sessions/contrib/chat/browser/promptsService.ts. That module
 			// resolves its URI on import, which fails in hosts without module URIs such as the Component Explorer,
 			// and this module is imported there.
 			const skillUri = FileAccess.asFileUri('vs/sessions/skills/automate/SKILL.md');
-			const skill = this.sessionsManagementService.isQuickChatTargetAvailable()
-				? (await this.promptsService.findAgentSkills(CancellationToken.None))?.find(candidate =>
-					candidate.name === 'automate' && candidate.storage === PromptsStorage.builtIn && isEqual(candidate.uri, skillUri))
-				: undefined;
-			if (skill && !this.promptsService.getDisabledPromptFiles(PromptsType.skill).has(skill.uri)) {
-				const session = await this.sessionsManagementService.createAndSendQuickChatRequest({
-					query,
-					attachedContext: [toPromptFileVariableEntry(skill.uri, PromptFileVariableKind.PromptFile)],
-				}, undefined, CancellationToken.None);
-				if (session) {
-					await this.sessionsService.openSession(session.resource);
-					return;
-				}
-			}
+			const skill = (await this.promptsService.findAgentSkills(CancellationToken.None))?.find(candidate =>
+				candidate.name === 'automate' && candidate.storage === PromptsStorage.builtIn && isEqual(candidate.uri, skillUri));
+			return skill && !this.promptsService.getDisabledPromptFiles(PromptsType.skill).has(skill.uri) ? skill : undefined;
 		} catch (error) {
-			this.logService.warn('[AutomationsLayout] Could not start the automation chat directly; sending from a new session instead.', error);
+			this.logService.warn('[AutomationsLayout] Could not look up the /automate skill; sending from a new session instead.', error);
+			return undefined;
 		}
-		await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { prompt: query } satisfies INewSessionInAgentsWindowOptions);
 	}
 
 	/** Create manually: today's automation dialog in its manual form, with `prompt` filled in. */

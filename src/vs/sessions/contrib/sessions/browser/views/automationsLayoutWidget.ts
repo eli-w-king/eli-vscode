@@ -85,8 +85,10 @@ const CODE_PLACEHOLDER = '\uE000';
 /** Set on the chat input at the top of the `chatInput` layout. */
 const AutomationsLayoutInputContext = new RawContextKey<boolean>('automationsLayoutInput', false);
 const SEND_AUTOMATION_GOAL_COMMAND_ID = 'sessions.automations.layout.send';
-const sendHandlers = new WeakMap<object, () => void>();
-let focusedSendHandler: (() => void) | undefined;
+/** How long a second Enter on the same text waits for the first send before it may retry. */
+const SEND_RETRY_AFTER_MS = 10_000;
+const sendHandlers = new WeakMap<object, () => Promise<void>>();
+let focusedSendHandler: (() => Promise<void>) | undefined;
 
 registerAction2(class SendAutomationGoalAction extends Action2 {
 	constructor() {
@@ -105,14 +107,36 @@ registerAction2(class SendAutomationGoalAction extends Action2 {
 		});
 	}
 
-	override run(_accessor: ServicesAccessor, context?: { readonly widget?: object }): void {
+	override async run(_accessor: ServicesAccessor, context?: { readonly widget?: object }): Promise<void> {
 		const handler = (context?.widget ? sendHandlers.get(context.widget) : undefined) ?? focusedSendHandler;
-		handler?.();
+		await handler?.();
 	}
 });
 
 /** The buttons and switch inside a row, reached with Left and Right. */
 const controlElements = new WeakMap<HTMLElement, readonly HTMLElement[]>();
+
+const AutomationsLayoutSearchHasTextContext = new RawContextKey<boolean>('automationsLayoutSearchHasText', false);
+
+registerAction2(class ClearAutomationsLayoutSearchAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.layout.clearSearch',
+			title: localize2('automationsLayout.clearSearch', "Clear Search"),
+			f1: false,
+			// Above the modal editor's Escape (WorkbenchContrib + 10), which would otherwise close it first.
+			keybinding: {
+				when: AutomationsLayoutSearchHasTextContext,
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib + 20,
+			},
+		});
+	}
+
+	override run(): void {
+		getFocusedAutomationsLayoutWidget()?.clearSearch();
+	}
+});
 
 let focusedLayoutWidget: AutomationsLayoutWidget | undefined;
 
@@ -441,12 +465,16 @@ export class AutomationsLayoutWidget extends Disposable {
 			ariaLabel: localize('automationsLayout.searchAriaLabel', "Search automations"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
-		this._register(this.searchBox.onDidChange(value => this.query.set(value, undefined)));
+		// Lets Escape clear a non-empty search before the modal's own Escape closes it.
+		const searchHasText = AutomationsLayoutSearchHasTextContext.bindTo(this._register(this.contextKeyService.createScoped(searchContainer)));
+		this._register(this.searchBox.onDidChange(value => {
+			searchHasText.set(!!value);
+			this.query.set(value, undefined);
+		}));
 		this._register(DOM.addDisposableListener(this.searchBox.inputElement, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Escape) && this.searchBox.value) {
+			if (keyboardEvent.equals(KeyCode.Escape) && this.clearSearch()) {
 				DOM.EventHelper.stop(event, true);
-				this.searchBox.value = '';
 			} else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 				DOM.EventHelper.stop(event, true);
 				this.focusFirstContentItem();
@@ -456,21 +484,21 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.filterButton.element.classList.add('automations-layout-icon-button', 'automations-layout-filter-button');
 		this.filterButton.element.setAttribute('aria-haspopup', 'menu');
 		this._register(this.filterButton.onDidClick(() => this.showFilterMenu()));
-		this.markAllButton = this._register(new Button(this.toolbar, { ...defaultButtonStyles, secondary: true, title: localize('automationsLayout.markAllReadTitle', "Mark all finished runs as read") }));
+		this.markAllButton = this._register(new Button(this.toolbar, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.markAllRead', "Mark all as read"), title: localize('automationsLayout.markAllReadTitle', "Mark all finished runs as read") }));
 		this.markAllButton.label = localize('automationsLayout.markAllRead', "Mark all as read");
 		this.markAllButton.element.classList.add('automations-layout-mark-all');
 		this._register(this.markAllButton.onDidClick(() => this.markAllRunsRead()));
 
 		if (modal) {
 			this.createButtons = DOM.append(this.toolbar, $('.automations-layout-create-buttons'));
-			const newButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, title: localize('automationsLayout.newTitle', "Describe a new automation in a chat") }));
+			const newButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, ariaLabel: localize('automationsLayout.new', "New"), title: localize('automationsLayout.newTitle', "Describe a new automation in a chat") }));
 			newButton.label = localize('automationsLayout.new', "New");
 			newButton.element.classList.add('automations-layout-new-button');
 			this._register(newButton.onDidClick(() => this.startNewAutomation()));
 			this._register(markOnboardingTarget(newButton.element, 'sessions.automations.create', {
 				onDidActivate: Event.map(newButton.onDidClick, () => undefined),
 			}));
-			const manualButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, secondary: true, title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
+			const manualButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.createManually', "Create manually"), title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
 			manualButton.label = localize('automationsLayout.createManually', "Create manually");
 			this._register(manualButton.onDidClick(() => void this.actions.createManually('')));
 
@@ -613,6 +641,15 @@ export class AutomationsLayoutWidget extends Disposable {
 		selected?.element.focus();
 	}
 
+	/** Clears a non-empty search. Returns whether there was anything to clear. */
+	clearSearch(): boolean {
+		if (!this.searchBox.value) {
+			return false;
+		}
+		this.searchBox.value = '';
+		return true;
+	}
+
 	/** The selected pane as plain text, for the Accessible View. */
 	getAccessibleContent(): string {
 		const nav = this.selectedNav.get();
@@ -682,6 +719,8 @@ export class AutomationsLayoutWidget extends Disposable {
 		const chatInput = createAutomationChatInput(scopedInstantiationService, inputHost, {
 			renderFollowups: false,
 			renderInputToolbarBelowInput: false,
+			// The composer only hands its text to a new chat, which has its own pickers.
+			renderSecondaryToolbar: false,
 			renderWorkingSet: false,
 			enableImplicitContext: false,
 			supportsChangingModes: false,
@@ -702,13 +741,26 @@ export class AutomationsLayoutWidget extends Disposable {
 		chatInput.inputEditor.updateOptions({ ariaLabel: localize('automationsLayout.composerAriaLabel', "Describe an automation to create in a new chat") });
 		layoutAutomationChatInput(chatInput, inputHost, this._store, 'automationsLayout.composer');
 
-		const send = () => {
+		// The text stays until a chat opens, so a failed or pending send loses nothing. A second Enter on the same text
+		// waits for the first send for a while, so it can't start two chats, but a send that never settles (for
+		// example after a cancelled sign-in) doesn't block a retry for good.
+		let inFlight: { readonly goal: string; readonly since: number } | undefined;
+		const send = async () => {
 			const goal = chatInput.inputEditor.getValue().trim();
-			if (!goal) {
+			if (!goal || (inFlight?.goal === goal && Date.now() - inFlight.since < SEND_RETRY_AFTER_MS)) {
 				return;
 			}
-			chatInput.inputEditor.setValue('');
-			void this.actions.sendAutomationGoal(goal);
+			const current = inFlight = { goal, since: Date.now() };
+			try {
+				const opened = await this.actions.sendAutomationGoal(goal);
+				if (opened && !this._store.isDisposed && chatInput.inputEditor.getValue().trim() === goal) {
+					chatInput.inputEditor.setValue('');
+				}
+			} finally {
+				if (inFlight === current) {
+					inFlight = undefined;
+				}
+			}
 		};
 		sendHandlers.set(widget, send);
 		this._register(chatInput.inputEditor.onDidFocusEditorText(() => focusedSendHandler = send));
@@ -728,7 +780,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			focus: () => chatInput.focus(),
 		};
 
-		const manualButton = this._register(new Button(container, { ...defaultButtonStyles, secondary: true, title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
+		const manualButton = this._register(new Button(container, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.createManually', "Create manually"), title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
 		manualButton.label = localize('automationsLayout.createManually', "Create manually");
 		manualButton.element.classList.add('automations-layout-composer-manual');
 		this._register(manualButton.onDidClick(() => void this.actions.createManually(chatInput.inputEditor.getValue().trim())));
