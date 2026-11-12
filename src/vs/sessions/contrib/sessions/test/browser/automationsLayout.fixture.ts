@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -14,11 +14,29 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import type { IInlineAutomationDialogOptions } from '../../../automations/browser/automationDialogService.js';
+import { IFormState, IValidationState, renderForm } from '../../../automations/browser/automationDialog.js';
+import '../../../automations/browser/media/automationDialog.css';
+import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -96,40 +114,121 @@ interface ILayoutFixtureOptions {
 	readonly nav?: AutomationsNavId;
 }
 
+// The widget dates sample runs from the clock it starts with and labels them with fromNow on every
+// later render, so the clicked-through fixtures must stay on real time.
+const realTime = { enabled: false };
+
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	DesignAHome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all' }),
 	}),
 	DesignAPersonal: defineComponentFixture({
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 640, sampleData: true, nav: 'personal' }),
 	}),
 	DesignARuns: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 640, sampleData: true, nav: 'runs' }),
 	}),
 	DesignAExamples: defineComponentFixture({
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 520, sampleData: true, nav: 'examples' }),
 	}),
 	DesignAEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 560, sampleData: false, nav: 'all' }),
 	}),
 	DesignBHome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'chatInput', width: 1200, height: 880, sampleData: true, nav: 'all' }),
 	}),
 	DesignBNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'chatInput', width: 560, height: 880, sampleData: true, nav: 'all' }),
 	}),
 	DesignBRuns: defineComponentFixture({
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'chatInput', width: 1200, height: 760, sampleData: true, nav: 'runs' }),
 	}),
 	DesignBEmpty: defineComponentFixture({
+		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'chatInput', width: 1200, height: 560, sampleData: false, nav: 'all' }),
 	}),
 });
+
+/**
+ * Create manually in the modal, inline like the real service's inline mode. The real service imports the
+ * Sessions prompts service, which needs a file root the Component Explorer doesn't set, so the fixture renders
+ * the same form and footer itself. Create and Cancel both return to the list here.
+ */
+class FixtureInlineAutomationDialogService extends mock<IAutomationDialogService>() {
+	instantiationService: IInstantiationService | undefined;
+
+	constructor(private readonly contextKeyService: IContextKeyService) {
+		super();
+	}
+
+	override async showAutomationDialog(options: IShowAutomationDialogOptions & IInlineAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+		const inline = options.inline;
+		const instantiationService = this.instantiationService;
+		if (!inline || !instantiationService) {
+			return undefined;
+		}
+		const store = new DisposableStore();
+		const done = new DeferredPromise<undefined>();
+		const element = append(inline.container, $('.automation-dialog.automation-dialog-inline', { role: 'region', 'aria-label': 'New automation' }));
+		const close = () => {
+			if (!done.isSettled) {
+				store.dispose();
+				element.remove();
+				void done.complete(undefined);
+			}
+		};
+		const body = append(element, $('.automation-dialog-inline-body.automation-dialog-body'));
+		append(body, $('.automation-titlebar', undefined, 'New automation'));
+		const form = append(append(append(body, $('.automation-dialog-scrollable')), $('.automation-form-pane')), $('.automation-form'));
+		const state: IFormState = {
+			name: '', interval: 'daily', cronExpression: '', timezoneOffset: new Date().getTimezoneOffset(), hour: 9, minute: 0, day: 1,
+			isQuickChat: false, folderUri: undefined, providerId: undefined, sessionTypeId: undefined, isolationMode: undefined, branch: undefined, enabled: true,
+		};
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		renderForm(
+			form, state, store, validation, () => { }, instantiationService, this.contextKeyService,
+			instantiationService.invokeFunction(accessor => accessor.get(IContextViewService)), instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService)),
+			instantiationService.invokeFunction(accessor => accessor.get(IWorkbenchLayoutService)), instantiationService.invokeFunction(accessor => accessor.get(ILogService)),
+			instantiationService.invokeFunction(accessor => accessor.get(ISessionsManagementService)), instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceTrustRequestService)),
+			options.initialValues?.prompt ?? '', undefined, undefined, constObservable([]),
+		);
+		const promptHost = form.querySelector<HTMLElement>('.automation-form-prompt-host');
+		if (promptHost) {
+			promptHost.style.width = '100%';
+		}
+		form.querySelector<HTMLElement>('input')?.focus();
+		const footer = append(append(element, $('.automation-dialog-inline-footer.dialog-buttons-row.automation-dialog-footer-row')), $('.dialog-buttons.automation-dialog-footer-actions'));
+		const buttons = store.add(new ButtonBar(footer));
+		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
+		cancel.label = 'Cancel';
+		const create = buttons.addButton(defaultButtonStyles);
+		create.label = 'Create';
+		store.add(cancel.onDidClick(close));
+		store.add(create.onDidClick(close));
+		store.add(addDisposableListener(element, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.key === 'Escape' && !event.defaultPrevented) {
+				event.preventDefault();
+				event.stopPropagation();
+				close();
+			}
+		}));
+		store.add(inline.token.onCancellationRequested(close));
+		return done.p;
+	}
+}
 
 function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptions): void {
 	const configurationService = new TestConfigurationService({
@@ -151,6 +250,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 	ctx.container.style.width = `${options.width}px`;
 	ctx.container.style.height = `${options.height}px`;
 
+	const inlineDialogService = new FixtureInlineAutomationDialogService(contextKeyService);
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
@@ -158,6 +258,10 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 			registerWorkbenchServices(reg);
 			// The real menus, for the page header.
 			reg.define(IMenuService, MenuService);
+			// Real context menus and hovers, so the filter menu, row menus and warning hovers open when clicked.
+			reg.define(IContextViewService, ContextViewService);
+			reg.define(IContextMenuService, ContextMenuService);
+			reg.define(IHoverService, HoverService);
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
 			reg.defineInstance(IStorageService, storageService);
@@ -165,6 +269,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				override readonly mainContainer = ctx.container;
 				override readonly activeContainer = ctx.container;
 				override readonly mainContainerDimension = { width: options.width, height: options.height };
+				override readonly onDidLayoutContainer = Event.None;
 				override readonly onDidChangePartVisibility = Event.None;
 				override readonly onDidChangeWindowMaximized = Event.None;
 				override getContainer() { return ctx.container; }
@@ -172,7 +277,29 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 			}());
 			reg.defineInstance(IAutomationService, new FixtureAutomationService());
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
-			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
+			// Create manually shows the real form inline in the modal.
+			reg.defineInstance(IAutomationDialogService, inlineDialogService);
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override readonly onShow = Event.None;
+				override readonly onHide = Event.None;
+			}());
+			reg.defineInstance(IGitService, new class extends mock<IGitService>() {
+				override async openRepository() { return undefined; }
+			}());
+			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
+				override readonly onDidChangeRecentWorkspaces = Event.None;
+				override readonly historyLoadState = constObservable('loaded' as const);
+				override getRecentWorkspaces() { return []; }
+				override isNoWorkspaceChecked() { return false; }
+				override clearCheckedWorkspace() { }
+			}());
+			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+				override readonly onDidChange = Event.None;
+				override readonly onDidChangeDiscovering = Event.None;
+				override readonly hosts = [];
+				override readonly isDiscovering = false;
+				override async rediscover() { return false; }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
 			}());
@@ -185,6 +312,13 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				override getSession() { return undefined; }
 				override getSessions() { return []; }
 				override isQuickChatTargetAvailable() { return false; }
+				override readonly automationSession = constObservable(undefined);
+				override readonly onDidChangeSessionTypes = Event.None;
+				override getAllProviderSessionTypes() { return []; }
+				override getQuickChatSessionTypes() { return []; }
+				override getSessionTypesForFolder() { return []; }
+				override isNewSessionTargetAvailable() { return false; }
+				override discardAutomationSession() { }
 				override readonly onDidEndNewSessionRequest = Event.None;
 				override createNewSessionSlot(): INewSessionDraftSlot & { dispose(): void } {
 					return { id: 'fixture', newSession: constObservable(undefined), createNewSession: () => { throw new Error('not in fixtures'); }, createQuickChat: () => { throw new Error('not in fixtures'); }, discardNewSession: () => { }, dispose: () => { } };
@@ -216,6 +350,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 		},
 	});
 	stubSessionHosts(instantiationService, ctx.disposableStore);
+	inlineDialogService.instantiationService = instantiationService;
 
 	if (options.variant === 'modal') {
 		ctx.container.style.backgroundColor = 'var(--vscode-editor-background)';

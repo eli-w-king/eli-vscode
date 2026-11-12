@@ -23,6 +23,11 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
+/* The argument hint after `/automate`, like the placeholder a chat input shows after a slash command */
+.automations-layout code .automations-layout-argument-hint {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Modal: sidebar and pane */
 
 .automations-layout-modal {
@@ -312,6 +317,7 @@
 .automations-layout-create-buttons {
 	display: flex;
 	align-items: center;
+	flex-shrink: 0;
 	gap: var(--vscode-spacing-size80);
 	margin-left: auto;
 }
@@ -805,4 +811,16 @@
 .automations-layout-row-hover-cron {
 	margin-top: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
+}
+
+/* Create manually in the modal: the form replaces the pane's content instead of opening a second modal. */
+.automations-layout-pane.creating > :not(.automations-layout-inline-create) {
+	display: none !important;
+}
+
+.automations-layout-inline-create {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
 }

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
+import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -130,10 +130,10 @@ suite('Automations layout model', () => {
 	test('counts leave out disabled automations, and Runs counts unread runs', () => {
 		const counts = getAutomationNavCounts(sample.rows, sample.runs, []);
 		assert.deepStrictEqual(AUTOMATIONS_NAV_IDS.map(id => `${id}: ${counts[id]}, ${getAutomationNavWarnings(sample.warnings, id).length} warnings`), [
-			'all: 12, 1 warnings',
-			'personal: 6, 1 warnings',
-			'cloud: 2, 0 warnings',
-			'repository: 4, 0 warnings',
+			'all: 3, 1 warnings',
+			'personal: 2, 1 warnings',
+			'cloud: 1, 0 warnings',
+			'repository: 0, 0 warnings',
 			'runs: 2, 0 warnings',
 			'examples: 0, 0 warnings',
 		]);
@@ -141,42 +141,40 @@ suite('Automations layout model', () => {
 
 	test('All automations lists Personal, Cloud and Repository, then every disabled automation last', () => {
 		assert.deepStrictEqual(getAutomationLayoutSections(sample.rows, 'all').map(section => [section.id, section.rows.map(row => row.name)]), [
-			['personal', ['Experiment findings digest', 'Morning inbox triage', 'Nightly variation lab', 'Skills sync', 'Outset study harvest', 'Research digest']],
-			['cloud', ['PR review summary', 'Codicon build check']],
-			['repository', ['Issue triage', 'Dependency audit', 'Release notes draft', 'Stale PR nudge']],
-			['disabled', ['Weekly perf report', 'Flaky test report']],
+			['personal', ['Morning inbox triage', 'Nightly variation lab']],
+			['cloud', ['PR review summary']],
 		]);
 	});
 
 	test('a group pane ends with its own disabled automations and hides empty sections', () => {
 		assert.deepStrictEqual({
+			personal: getAutomationLayoutSections(sample.rows, 'personal').map(section => [section.id, section.rows.length]),
 			repository: getAutomationLayoutSections(sample.rows, 'repository').map(section => [section.id, section.rows.length]),
 			cloud: getAutomationLayoutSections(sample.rows, 'cloud').map(section => [section.id, section.rows.length]),
-			repositoryLabel: getSharedRepositoryLabel(sample.rows),
 		}, {
-			repository: [['repository', 4], ['disabled', 1]],
-			cloud: [['cloud', 2]],
-			repositoryLabel: 'microsoft/vscode',
+			personal: [['personal', 2]],
+			repository: [],
+			cloud: [['cloud', 1]],
 		});
 	});
 
 	test('search matches names and prompts, and filters combine', () => {
 		const names = (query: string, filters = EMPTY_AUTOMATIONS_LAYOUT_FILTERS) => filterAutomationRows(sample.rows, query, filters).map(row => row.name);
 		assert.deepStrictEqual({
-			name: names('digest'),
-			prompt: names('advisories'),
+			name: names('triage'),
+			prompt: names('careful review'),
 			host: names('', { ...EMPTY_AUTOMATIONS_LAYOUT_FILTERS, hosts: ['sample:devbox1'] }),
 			off: names('', { ...EMPTY_AUTOMATIONS_LAYOUT_FILTERS, statuses: ['off'] }),
 			failed: names('', { ...EMPTY_AUTOMATIONS_LAYOUT_FILTERS, statuses: ['failed'] }),
-			workspace: names('report', { ...EMPTY_AUTOMATIONS_LAYOUT_FILTERS, workspaces: ['microsoft/vscode'] }),
+			workspace: names('summary', { ...EMPTY_AUTOMATIONS_LAYOUT_FILTERS, workspaces: ['eli-w-king/eli-vscode'] }),
 			none: names('nothing matches this'),
 		}, {
-			name: ['Experiment findings digest', 'Research digest'],
-			prompt: ['Dependency audit'],
-			host: ['Nightly variation lab', 'Skills sync'],
-			off: ['Weekly perf report', 'Flaky test report'],
-			failed: ['Nightly variation lab', 'Dependency audit'],
-			workspace: ['Flaky test report'],
+			name: ['Morning inbox triage'],
+			prompt: ['PR review summary'],
+			host: ['Nightly variation lab'],
+			off: [],
+			failed: ['Nightly variation lab'],
+			workspace: ['PR review summary'],
 			none: [],
 		});
 	});

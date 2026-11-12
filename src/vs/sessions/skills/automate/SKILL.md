@@ -1,6 +1,7 @@
 ---
 name: automate
 description: 'Propose an automation from a completed task or a new idea, then create it after approval. Use when the user asks to create an automation or wants scheduled local or cloud agent work.'
+argument-hint: describe what to automate and when
 ---
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 

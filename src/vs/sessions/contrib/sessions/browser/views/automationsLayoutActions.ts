@@ -22,7 +22,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import type { IInlineAutomationDialogOptions } from '../../../automations/browser/automationDialogService.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -133,9 +134,9 @@ export class AutomationsLayoutActions {
 		}
 	}
 
-	/** Create manually: today's automation dialog in its manual form, with `prompt` filled in. */
-	async createManually(prompt: string): Promise<void> {
-		await this.create({ name: '', prompt, schedule: DEFAULT_MANUAL_SCHEDULE });
+	/** Create manually: today's automation dialog in its manual form, with `prompt` filled in, or the same form inline in `inline`'s container. */
+	async createManually(prompt: string, inline?: IInlineAutomationDialogOptions['inline']): Promise<void> {
+		await this.create({ name: '', prompt, schedule: DEFAULT_MANUAL_SCHEDULE }, inline);
 	}
 
 	async createFromTemplate(template: IAutomationTemplate): Promise<void> {
@@ -147,14 +148,15 @@ export class AutomationsLayoutActions {
 		});
 	}
 
-	private async create(initialValues: { readonly name: string; readonly prompt: string; readonly schedule: IAutomationSchedule; readonly enabled?: boolean }): Promise<void> {
+	private async create(initialValues: { readonly name: string; readonly prompt: string; readonly schedule: IAutomationSchedule; readonly enabled?: boolean }, inline?: IInlineAutomationDialogOptions['inline']): Promise<void> {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
 		try {
 			let created: IAutomationDescriptor | undefined;
-			const result = await this.automationDialogService.showAutomationDialog({
+			const options: IShowAutomationDialogOptions & IInlineAutomationDialogOptions = {
 				initialValues,
+				inline,
 				commit: async dialogResult => {
 					if (dialogResult.kind === 'create') {
 						this.throwIfDisabled();
@@ -162,7 +164,8 @@ export class AutomationsLayoutActions {
 							this.automationService.createAutomation(dialogResult.value, () => this.throwIfDisabled()));
 					}
 				},
-			});
+			};
+			const result = await this.automationDialogService.showAutomationDialog(options);
 			if (result && created) {
 				status(localize('automationsLayout.createdStatus', "Created automation {0}", created.name));
 			}

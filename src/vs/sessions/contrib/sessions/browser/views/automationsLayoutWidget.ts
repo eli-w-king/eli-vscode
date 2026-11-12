@@ -23,7 +23,8 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -45,6 +46,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { IChatExecuteActionContext } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -76,6 +78,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 const $ = DOM.$;
 
 const SELECTED_NAV_STORAGE_KEY = 'sessions.automations.layout.selectedNav';
+const CREATE_SPOTLIGHT_SHOWN_STORAGE_KEY = 'sessions.automations.layout.createSpotlightShown';
 const FILTERS_STORAGE_KEY = 'sessions.automations.layout.filters';
 const OPEN_SECTIONS_STORAGE_KEY = 'sessions.automations.layout.openSections';
 const SIDEBAR_WIDTH_STORAGE_KEY = 'sessions.automations.layout.sidebarWidth';
@@ -240,15 +243,22 @@ function getRunStateDescription(state: AutomationRunState | undefined): string |
 	}
 }
 
-/** Appends `text`, rendering `/automate` as code wherever {@link CODE_PLACEHOLDER} appears. */
-function appendWithCode(parent: HTMLElement, text: string): void {
+/**
+ * Appends `text`, rendering `/automate` as code wherever {@link CODE_PLACEHOLDER} appears. With `argumentHint`, the
+ * code reads like a chat input: `/automate` followed by the hint as dimmed placeholder text.
+ */
+function appendWithCode(parent: HTMLElement, text: string, argumentHint?: string): void {
 	const parts = text.split(CODE_PLACEHOLDER);
 	parts.forEach((part, index) => {
 		if (part) {
 			parent.append(part);
 		}
 		if (index < parts.length - 1) {
-			DOM.append(parent, $('code', undefined, AUTOMATE_COMMAND_PREFIX.trim()));
+			const code = DOM.append(parent, $('code', undefined, AUTOMATE_COMMAND_PREFIX.trim()));
+			if (argumentHint) {
+				code.append(' ');
+				DOM.append(code, $('span.automations-layout-argument-hint', undefined, argumentHint));
+			}
 		}
 	});
 }
@@ -424,8 +434,11 @@ export class AutomationsLayoutWidget extends Disposable {
 	/** The rendered switch of each automation row, so a finished save can update it after a re-render. */
 	private readonly rowSwitches = new Map<string, Switch>();
 	private readonly navHovers = new Map<AutomationsNavId, { readonly key: string; readonly disposable: IDisposable }>();
+	/** Set while Create manually shows its form in the pane (the modal layout). */
+	private inlineCreation: CancellationTokenSource | undefined;
 	private readonly idPrefix = `automations-layout-${generateUuid()}`;
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 60_000));
+	private readonly createSpotlight = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly options: IAutomationsLayoutWidgetOptions,
@@ -510,16 +523,18 @@ export class AutomationsLayoutWidget extends Disposable {
 
 		if (modal) {
 			this.createButtons = DOM.append(this.toolbar, $('.automations-layout-create-buttons'));
-			const newButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, ariaLabel: localize('automationsLayout.new', "New"), title: localize('automationsLayout.newTitle', "Describe a new automation in a chat") }));
-			newButton.label = localize('automationsLayout.new', "New");
+			const newButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, ariaLabel: localize('automationsLayout.createWithAgent', "Create with agent"), title: localize('automationsLayout.createWithAgentTitle', "Close Automations and describe the automation in a new session") }));
+			newButton.label = localize('automationsLayout.createWithAgent', "Create with agent");
 			newButton.element.classList.add('automations-layout-new-button');
 			this._register(newButton.onDidClick(() => this.startNewAutomation()));
 			this._register(markOnboardingTarget(newButton.element, 'sessions.automations.create', {
 				onDidActivate: Event.map(newButton.onDidClick, () => undefined),
 			}));
+			this.showCreateWithAgentSpotlightOnce(newButton.element);
 			const manualButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.createManually', "Create manually"), title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
 			manualButton.label = localize('automationsLayout.createManually', "Create manually");
-			this._register(manualButton.onDidClick(() => void this.actions.createManually('')));
+			this._register(manualButton.onDidClick(() => void this.createManuallyInPane()));
+			this._register(toDisposable(() => this.inlineCreation?.cancel()));
 
 			this.paneHeader = DOM.append(this.paneContainer, $('.automations-layout-pane-header'));
 			const titleRow = DOM.append(this.paneHeader, $('.automations-layout-pane-title-row'));
@@ -527,7 +542,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			titleRow.appendChild(this.sampleLabel);
 			this.paneDescription = DOM.append(this.paneHeader, $('p.automations-layout-pane-description'));
 			this.paneTip = DOM.append(this.paneHeader, $('p.automations-layout-tip'));
-			appendWithCode(this.paneTip, localize('automationsLayout.tip', "Type {0} in any chat to create an automation.", CODE_PLACEHOLDER));
+			appendWithCode(this.paneTip, localize('automationsLayout.tip', "Type {0} in any chat to create an automation.", CODE_PLACEHOLDER), localize('automationsLayout.tipArgumentHint', "describe what to automate and when"));
 			this.paneContainer.appendChild(this.toolbar);
 
 			this.sidebar = $('.automations-layout-sidebar');
@@ -846,7 +861,26 @@ export class AutomationsLayoutWidget extends Disposable {
 		}));
 	}
 
+	/** Create manually in the modal: the form replaces this pane's content instead of opening a second modal on top. */
+	private async createManuallyInPane(): Promise<void> {
+		if (this.inlineCreation) {
+			return;
+		}
+		const cancellation = this.inlineCreation = new CancellationTokenSource();
+		const host = DOM.append(this.paneContainer, $('.automations-layout-inline-create'));
+		this.paneContainer.classList.add('creating');
+		try {
+			await this.actions.createManually('', { container: host, token: cancellation.token });
+		} finally {
+			cancellation.dispose();
+			this.inlineCreation = undefined;
+			host.remove();
+			this.paneContainer.classList.remove('creating');
+		}
+	}
+
 	private setSelectedNav(nav: AutomationsNavId): void {
+		this.inlineCreation?.cancel();
 		if (this.selectedNav.get() === nav) {
 			return;
 		}
@@ -1475,6 +1509,57 @@ export class AutomationsLayoutWidget extends Disposable {
 	private async startNewAutomation(): Promise<void> {
 		await this.options.close?.();
 		await this.actions.startAutomationChat();
+	}
+
+	/** Explains Create with agent the first time the modal shows, once the modal has laid the button out. */
+	private showCreateWithAgentSpotlightOnce(target: HTMLElement): void {
+		if (this.storageService.getBoolean(CREATE_SPOTLIGHT_SHOWN_STORAGE_KEY, StorageScope.PROFILE, false)) {
+			return;
+		}
+		const targetWindow = DOM.getWindow(target);
+		const waiting = new DisposableStore();
+		this.createSpotlight.value = waiting;
+		const pending = waiting.add(new MutableDisposable());
+		const observer = waiting.add(new DOM.DisposableResizeObserver('automationsLayout.createSpotlight', () => {
+			pending.value ??= DOM.scheduleAtNextAnimationFrame(targetWindow, () => {
+				pending.clear();
+				this.showCreateWithAgentSpotlight(target);
+			});
+		}, targetWindow));
+		waiting.add(observer.observe(target));
+	}
+
+	private showCreateWithAgentSpotlight(target: HTMLElement): void {
+		if (this.storageService.getBoolean(CREATE_SPOTLIGHT_SHOWN_STORAGE_KEY, StorageScope.PROFILE, false)) {
+			this.createSpotlight.clear();
+			return;
+		}
+		const rect = target.getBoundingClientRect();
+		if (!target.isConnected || rect.width === 0 || rect.height === 0) {
+			return;
+		}
+		this.storageService.store(CREATE_SPOTLIGHT_SHOWN_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		const store = new DisposableStore();
+		this.createSpotlight.value = store;
+		// The workbench container, like the onboarding spotlight, so the overlay sits above the modal.
+		const overlay = store.add(new SpotlightOverlay(target.closest<HTMLElement>('.monaco-workbench') ?? this.element));
+		const dismiss = () => {
+			if (this.createSpotlight.value === store) {
+				this.createSpotlight.clear();
+			}
+		};
+		store.add(overlay.onDidClickNext(dismiss));
+		store.add(overlay.onDidSkip(dismiss));
+		store.add(overlay.onDidLoseTarget(dismiss));
+		overlay.show(target, {
+			title: localize('automationsLayout.createSpotlight.title', "Create with agent"),
+			description: localize('automationsLayout.createSpotlight.description', "Closes Automations and starts a new session. Describe what you want automated and the agent sets it up."),
+			nextButtonLabel: localize('automationsLayout.createSpotlight.gotIt', "Got it"),
+			stepIndex: 0,
+			stepCount: 1,
+			canGoBack: false,
+			isLastStep: true,
+		}, { placement: 'below' });
 	}
 
 	//#endregion
