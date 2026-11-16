@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
+import { ISessionArtifact, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
+import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getThisMachineLabel, groupAutomationRunsByDay, hasAutomationRunResult, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -181,7 +182,7 @@ suite('Automations layout model', () => {
 
 	test('runs are grouped by day and searched by title and automation name', () => {
 		const run = (id: string, title: string, automationName: string, time: number): IAutomationLayoutRun => ({
-			id, automationId: id, automationName, title, state: 'completed', time, unread: false, isSample: false, sessionResource: undefined, externalResource: undefined,
+			id, automationId: id, automationName, title, state: 'completed', time, startTime: time, trigger: 'schedule', outcome: undefined, result: undefined, unread: false, isSample: false, sessionResource: undefined, externalResource: undefined,
 		});
 		const hour = 60 * 60 * 1000;
 		const runs = [
@@ -198,6 +199,106 @@ suite('Automations layout model', () => {
 			search: ['b'],
 			byAutomation: ['a'],
 		});
+	});
+});
+
+suite('Automations layout details', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hour = 60 * 60 * 1000;
+	const pullRequest = { kind: SessionArtifactKind.PullRequest, label: '#12 Skip flaky tests' };
+
+	function run(id: string, overrides: Partial<IAutomationLayoutRun> = {}): IAutomationLayoutRun {
+		return {
+			id, automationId: 'automation', automationName: 'Automation', title: 'Automation', state: 'completed', time: 0, startTime: 0, trigger: 'schedule',
+			outcome: undefined, result: undefined, unread: false, isSample: false, sessionResource: undefined, externalResource: undefined, ...overrides,
+		};
+	}
+
+	test('lists only the automation\'s runs, newest first by when they started', () => {
+		const runs = [
+			run('older', { startTime: 1 * hour, time: 2 * hour }),
+			// Started before `newer` but still going, so it changed last.
+			run('long', { state: 'running', startTime: 3 * hour, time: 9 * hour }),
+			run('other', { automationId: 'other', startTime: 8 * hour, time: 8 * hour }),
+			run('newer', { startTime: 5 * hour, time: 6 * hour }),
+			run('tie-b', { startTime: 4 * hour, time: 4 * hour }),
+			run('tie-a', { startTime: 4 * hour, time: 4 * hour }),
+		];
+		assert.deepStrictEqual(getAutomationLayoutDetails(runs, 'automation').runs.map(item => item.id), ['newer', 'tie-a', 'tie-b', 'long', 'older']);
+	});
+
+	test('the latest result is the newest successful run with a result, and says when it is not the latest run', () => {
+		const succeeded = run('succeeded', { startTime: 1 * hour, result: { artifacts: [pullRequest] } });
+		const latestResult = (latest: Partial<IAutomationLayoutRun>) => {
+			const details = getAutomationLayoutDetails([succeeded, run('latest', { startTime: 2 * hour, ...latest })], 'automation');
+			return { latest: details.latestRun?.id, result: details.latestResult?.run.id, fromLatestRun: details.latestResult?.fromLatestRun };
+		};
+		assert.deepStrictEqual({
+			succeededWithResult: latestResult({ result: { artifacts: [], summary: 'Sorted 9 notifications.' } }),
+			failed: latestResult({ state: 'failed', outcome: 'Lost the connection.' }),
+			// What a failed or unfinished run recorded is never shown as the latest result.
+			failedWithArtifact: latestResult({ state: 'failed', result: { artifacts: [pullRequest] } }),
+			running: latestResult({ state: 'running', result: { artifacts: [pullRequest] } }),
+			needsInput: latestResult({ state: 'needsInput' }),
+			succeededWithNothing: latestResult({ result: { artifacts: [], changes: { files: 0, additions: 0, deletions: 0 } } }),
+		}, {
+			succeededWithResult: { latest: 'latest', result: 'latest', fromLatestRun: true },
+			failed: { latest: 'latest', result: 'succeeded', fromLatestRun: false },
+			failedWithArtifact: { latest: 'latest', result: 'succeeded', fromLatestRun: false },
+			running: { latest: 'latest', result: 'succeeded', fromLatestRun: false },
+			needsInput: { latest: 'latest', result: 'succeeded', fromLatestRun: false },
+			succeededWithNothing: { latest: 'latest', result: 'succeeded', fromLatestRun: false },
+		});
+	});
+
+	test('missing metadata shows nothing rather than a guess', () => {
+		const artifact = (id: string, kind: SessionArtifactKind, isArtifact: boolean): ISessionArtifact => ({ id, kind, label: id, isArtifact });
+		// Unknown because the session isn't available: no result, and no earlier one to stand in for it.
+		const unknown = getAutomationLayoutDetails([run('unknown', { result: undefined })], 'automation');
+		assert.deepStrictEqual({
+			unknown: { latest: unknown.latestRun?.id, result: unknown.latestResult },
+			noRuns: getAutomationLayoutDetails([run('other', { automationId: 'other', result: { artifacts: [pullRequest] } })], 'automation'),
+			hasResult: [undefined, { artifacts: [] }, { artifacts: [], changes: { files: 0, additions: 0, deletions: 0 } }, { artifacts: [], changes: { files: 2, additions: 4, deletions: 1 } }].map(result => hasAutomationRunResult(result)),
+			// References the session only pointed at are not results; artifacts keep the Agents window's order.
+			artifacts: getAutomationRunArtifacts([
+				artifact('notes.md', SessionArtifactKind.File, true),
+				artifact('#3 Bug', SessionArtifactKind.Issue, false),
+				artifact('#4 Fix', SessionArtifactKind.PullRequest, true),
+				artifact('abc123', SessionArtifactKind.Commit, true),
+			]).map(item => item.label),
+		}, {
+			unknown: { latest: 'unknown', result: undefined },
+			noRuns: { runs: [], latestRun: undefined, latestResult: undefined },
+			hasResult: [false, false, false, true],
+			artifacts: ['#4 Fix', 'abc123', 'notes.md'],
+		});
+	});
+
+	test('each run opens its own session, or its page on GitHub, or says why it can\'t', () => {
+		const first = URI.parse('agent-host-copilotcli:/run-1');
+		const second = URI.parse('agent-host-copilotcli:/run-2');
+		const github = URI.parse('https://github.com/owner/repo/actions/runs/7');
+		const runs = [
+			run('second', { startTime: 2 * hour, sessionResource: second }),
+			run('first', { startTime: 1 * hour, sessionResource: first, externalResource: github }),
+			run('cloud', { startTime: 3 * hour, externalResource: github }),
+			run('starting', { startTime: 4 * hour, state: 'running' }),
+			run('unlinked', { startTime: 0 }),
+			run('sample', { startTime: 5 * hour, isSample: true, sessionResource: second }),
+		];
+		assert.deepStrictEqual(getAutomationLayoutDetails(runs, 'automation').runs.map(item => {
+			const destination = getAutomationRunDestination(item);
+			return [item.id, destination.kind === 'none' ? destination.reason : destination.resource.toString()];
+		}), [
+			['sample', 'sample'],
+			['starting', 'notLinked'],
+			['cloud', github.toString()],
+			['second', second.toString()],
+			// An older run opens its own session, ahead of its GitHub page, not the newest one.
+			['first', first.toString()],
+			['unlinked', 'noSession'],
+		]);
 	});
 });
 

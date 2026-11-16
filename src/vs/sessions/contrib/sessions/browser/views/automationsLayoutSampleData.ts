@@ -10,10 +10,11 @@
 
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import type { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { AutomationRunTrigger, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
-import { AutomationGroupId, AutomationRunState, CLOUD_AUTOMATION_HOST, getThisMachineLabel, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
+import { AutomationGroupId, AutomationRunState, CLOUD_AUTOMATION_HOST, getThisMachineLabel, IAutomationLayoutArtifact, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { describeAutomationSchedule, IAutomationScheduleDescription } from './automationsLayoutSchedule.js';
 
 /** Sample runs marked as read, shared by every open layout until the window reloads. */
@@ -42,7 +43,12 @@ interface ISampleRun {
 	readonly automationId: string;
 	readonly state: AutomationRunState;
 	readonly time: number;
+	readonly trigger: AutomationRunTrigger;
 	readonly unread?: boolean;
+	/** Why the run failed. */
+	readonly outcome?: string;
+	readonly summary?: string;
+	readonly artifacts?: readonly IAutomationLayoutArtifact[];
 }
 
 const DEVBOX1 = 'sample:devbox1';
@@ -75,12 +81,32 @@ function getSampleRuns(now: number): readonly ISampleRun[] {
 	const day = 24 * hour;
 	const today = (minutesAgo: number) => Math.max(startOfToday + minute, now - minutesAgo * minute);
 	const yesterday = (hours: number, minutes = 0) => startOfToday - day + hours * hour + minutes * minute;
+	const replies = localize('automationsSample.result.replies', "Replies to review.md");
 	return [
-		{ id: 'sample.run.inboxTriage', automationId: 'sample.inboxTriage', state: 'completed', time: today(180), unread: true },
-		{ id: 'sample.run.prReviewSummary', automationId: 'sample.prReviewSummary', state: 'completed', time: now - 13 * hour, unread: true },
-		{ id: 'sample.run.variationLab', automationId: 'sample.variationLab', state: 'failed', time: yesterday(1) },
-		{ id: 'sample.run.inboxTriageYesterday', automationId: 'sample.inboxTriage', state: 'completed', time: yesterday(8, 30) },
-		{ id: 'sample.run.variationLabEarlier', automationId: 'sample.variationLab', state: 'completed', time: yesterday(1) - day },
+		{
+			id: 'sample.run.inboxTriage', automationId: 'sample.inboxTriage', state: 'completed', time: today(180), trigger: 'schedule', unread: true,
+			summary: localize('automationsSample.result.inboxTriage', "Sorted 14 notifications: 3 need a reply, 6 are FYI and 5 can be ignored. Drafted the 3 replies."),
+			artifacts: [{ kind: SessionArtifactKind.File, label: replies }],
+		},
+		{
+			id: 'sample.run.prReviewSummary', automationId: 'sample.prReviewSummary', state: 'completed', time: now - 13 * hour, trigger: 'external', unread: true,
+			summary: localize('automationsSample.result.prReviewSummary', "2 of 9 changed files need a careful review: the layout widget and its styles."),
+			artifacts: [{ kind: SessionArtifactKind.PullRequest, label: localize('automationsSample.result.pullRequest', "#214 Add run details to Automations") }],
+		},
+		{
+			id: 'sample.run.variationLab', automationId: 'sample.variationLab', state: 'failed', time: yesterday(1), trigger: 'schedule',
+			outcome: localize('automationsSample.result.variationLabFailed', "Lost the connection to DevBox1 before the contact sheets were posted."),
+		},
+		{
+			id: 'sample.run.inboxTriageYesterday', automationId: 'sample.inboxTriage', state: 'completed', time: yesterday(8, 30), trigger: 'schedule',
+			summary: localize('automationsSample.result.inboxTriageYesterday', "Sorted 9 notifications: 1 needs a reply, 5 are FYI and 3 can be ignored. Drafted the reply."),
+			artifacts: [{ kind: SessionArtifactKind.File, label: replies }],
+		},
+		{
+			id: 'sample.run.variationLabEarlier', automationId: 'sample.variationLab', state: 'completed', time: yesterday(1) - day, trigger: 'schedule',
+			summary: localize('automationsSample.result.variationLab', "Built 6 variations and checked each at 4 sizes. 2 need spacing fixes."),
+			artifacts: [{ kind: SessionArtifactKind.Website, label: localize('automationsSample.result.contactSheets', "Contact sheets for 6 variations") }],
+		},
 	];
 }
 
@@ -122,6 +148,10 @@ export function getAutomationsSampleData(now: number, readRuns: ReadonlySet<stri
 		title: names.get(run.automationId) ?? '',
 		state: run.state,
 		time: run.time,
+		startTime: run.time,
+		trigger: run.trigger,
+		outcome: run.outcome,
+		result: { summary: run.summary, artifacts: run.artifacts ?? [] },
 		unread: !!run.unread && !readRuns.has(run.id),
 		isSample: true,
 		sessionResource: undefined,

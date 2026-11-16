@@ -6,7 +6,8 @@
 import { localize } from '../../../../../nls.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import type { URI } from '../../../../../base/common/uri.js';
-import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { ISessionArtifact, ISessionChangesSummary, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
 import type { IAutomationScheduleDescription } from './automationsLayoutSchedule.js';
 import type { IAutomationTemplate } from './automationTemplates.js';
 
@@ -61,11 +62,34 @@ export interface IAutomationLayoutRun {
 	/** The run's session title, or the automation's name. */
 	readonly title: string;
 	readonly state: AutomationRunState;
+	/** When the run last changed: its latest update while it's running, otherwise when it finished. */
 	readonly time: number;
+	/** When the run started, which orders an automation's runs. */
+	readonly startTime: number;
+	readonly trigger: AutomationRunTrigger | undefined;
+	/** The provider's own words about the run: why it failed, how it ended, or what it's doing now. */
+	readonly outcome: string | undefined;
+	/** What the run produced. Undefined while its session isn't available, so nothing is known about it. */
+	readonly result: IAutomationLayoutRunResult | undefined;
 	readonly unread: boolean;
 	readonly isSample: boolean;
 	readonly sessionResource: URI | undefined;
 	readonly externalResource: URI | undefined;
+}
+
+/** What a run produced, as far as its session reports it. */
+export interface IAutomationLayoutRunResult {
+	/** A short summary of what the run did. Only sample data has one; providers don't report summaries. */
+	readonly summary?: string;
+	/** The artifacts the run's session recorded, in the order the Agents window lists them. */
+	readonly artifacts: readonly IAutomationLayoutArtifact[];
+	/** The file changes the run's session reports. */
+	readonly changes?: ISessionChangesSummary;
+}
+
+export interface IAutomationLayoutArtifact {
+	readonly kind: SessionArtifactKind;
+	readonly label: string;
 }
 
 export interface IAutomationLayoutExample {
@@ -242,4 +266,84 @@ export function getSharedRepositoryLabel(rows: readonly IAutomationLayoutRow[]):
 	const repositories = new Set(rows.filter(row => row.group === 'repository').map(row => row.workspace));
 	const [repository] = repositories;
 	return repositories.size === 1 ? repository : undefined;
+}
+
+/** The order the Agents window lists a session's artifacts in. */
+const ARTIFACT_KIND_ORDER: readonly SessionArtifactKind[] = [
+	SessionArtifactKind.PullRequest,
+	SessionArtifactKind.Issue,
+	SessionArtifactKind.Commit,
+	SessionArtifactKind.Website,
+	SessionArtifactKind.File,
+	SessionArtifactKind.Resource,
+];
+
+function getArtifactKindOrder(kind: SessionArtifactKind): number {
+	const index = ARTIFACT_KIND_ORDER.indexOf(kind);
+	return index === -1 ? ARTIFACT_KIND_ORDER.length : index;
+}
+
+/** What a session produced, leaving out the references it only points at, in the order the Agents window lists them. */
+export function getAutomationRunArtifacts(artifacts: readonly ISessionArtifact[]): IAutomationLayoutArtifact[] {
+	return artifacts
+		.map((artifact, index) => ({ artifact, index }))
+		.filter(({ artifact }) => artifact.isArtifact)
+		.sort((a, b) => getArtifactKindOrder(a.artifact.kind) - getArtifactKindOrder(b.artifact.kind) || a.index - b.index)
+		.map(({ artifact }) => ({ kind: artifact.kind, label: artifact.label }));
+}
+
+/** Whether a run has anything to show as its result: a summary, an artifact or changed files. */
+export function hasAutomationRunResult(result: IAutomationLayoutRunResult | undefined): result is IAutomationLayoutRunResult {
+	return !!result && (!!result.summary || result.artifacts.length > 0 || (result.changes?.files ?? 0) > 0);
+}
+
+/** Newest first: by when runs started, then by when they last changed. */
+function compareRunsNewestFirst(a: IAutomationLayoutRun, b: IAutomationLayoutRun): number {
+	return b.startTime - a.startTime || b.time - a.time || a.id.localeCompare(b.id);
+}
+
+/** What the details of an automation show about its runs. */
+export interface IAutomationLayoutDetails {
+	/** Its runs, newest first. */
+	readonly runs: readonly IAutomationLayoutRun[];
+	readonly latestRun: IAutomationLayoutRun | undefined;
+	/**
+	 * The newest successful run that has a result. When `fromLatestRun` is false, a newer run failed, is still going,
+	 * or has nothing to show, so the result belongs to this earlier run and is labeled as such.
+	 */
+	readonly latestResult: { readonly run: IAutomationLayoutRun; readonly fromLatestRun: boolean } | undefined;
+}
+
+export function getAutomationLayoutDetails(runs: readonly IAutomationLayoutRun[], automationId: string): IAutomationLayoutDetails {
+	const own = runs.filter(run => run.automationId === automationId).sort(compareRunsNewestFirst);
+	const latestRun = own[0];
+	const resultRun = own.find(run => run.state === 'completed' && hasAutomationRunResult(run.result));
+	return {
+		runs: own,
+		latestRun,
+		latestResult: resultRun ? { run: resultRun, fromLatestRun: resultRun === latestRun } : undefined,
+	};
+}
+
+/**
+ * Where opening a run goes: its own session, or its page on GitHub when only that is known, the same order
+ * `AutomationsLayoutActions.openRun` uses. Otherwise nowhere, with the reason.
+ */
+export type AutomationRunDestination =
+	| { readonly kind: 'session'; readonly resource: URI }
+	| { readonly kind: 'external'; readonly resource: URI }
+	| { readonly kind: 'none'; readonly reason: 'sample' | 'notLinked' | 'noSession' };
+
+export function getAutomationRunDestination(run: IAutomationLayoutRun): AutomationRunDestination {
+	if (run.isSample) {
+		return { kind: 'none', reason: 'sample' };
+	}
+	if (run.sessionResource) {
+		return { kind: 'session', resource: run.sessionResource };
+	}
+	if (run.externalResource) {
+		return { kind: 'external', resource: run.externalResource };
+	}
+	// A host links a run's session only once it has created it.
+	return { kind: 'none', reason: run.state === 'running' || run.state === 'needsInput' ? 'notLinked' : 'noSession' };
 }

@@ -6,6 +6,7 @@
 import '../media/automationsLayout.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -32,7 +33,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -48,7 +49,7 @@ import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentH
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { IChatExecuteActionContext } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
-import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
@@ -62,13 +63,13 @@ import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/brow
 import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { AUTOMATE_COMMAND_PREFIX, AutomationsLayoutActions } from './automationsLayoutActions.js';
-import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunState, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
+import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getAutomationRunState, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutDetails, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutRunResult, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { getAutomationsSampleData, IAutomationsSampleData, sampleAutomationRunsRead } from './automationsLayoutSampleData.js';
 import { describeAutomationSchedule } from './automationsLayoutSchedule.js';
 import { readAutomationTemplates } from './automationTemplates.js';
@@ -137,6 +138,29 @@ registerAction2(class ClearAutomationsLayoutSearchAction extends Action2 {
 	}
 });
 
+/** Set while the details of an automation are open, for focus anywhere in the layout. */
+const AutomationsLayoutDetailsOpenContext = new RawContextKey<boolean>('automationsLayoutDetailsOpen', false);
+
+registerAction2(class CloseAutomationsLayoutDetailsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.layout.closeDetails',
+			title: localize2('automationsLayout.closeDetails', "Close Details"),
+			f1: false,
+			// Above the modal editor's Escape (WorkbenchContrib + 10), below Clear Search, so a non-empty search clears first.
+			keybinding: {
+				when: AutomationsLayoutDetailsOpenContext,
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib + 15,
+			},
+		});
+	}
+
+	override run(): void {
+		getFocusedAutomationsLayoutWidget()?.closeDetails();
+	}
+});
+
 let focusedLayoutWidget: AutomationsLayoutWidget | undefined;
 
 /** The layout widget that last had focus, for the accessibility help and the Accessible View. */
@@ -164,6 +188,72 @@ interface IFocusedContent {
 	readonly key: string;
 	/** The `data-control` name of the focused control in the item (`run`, `more`, `enabled` or `use`), if any. */
 	readonly control: string | undefined;
+}
+
+/** The open details panel of one automation. */
+interface IDetailsView {
+	readonly rowId: string;
+	readonly panel: HTMLElement;
+	readonly title: HTMLElement;
+	readonly sampleLabel: HTMLElement;
+	readonly body: HTMLElement;
+	/** The disposables of the rendered content, cleared on every render. */
+	readonly content: DisposableStore;
+	/** The rendered elements that can have focus, by their `data-details-key`, to keep focus across renders. */
+	readonly keyed: Map<string, HTMLElement>;
+	/** The `data-details-key` of the run that Tab reaches in the runs list. */
+	activeRun: string | undefined;
+}
+
+/** Where an automation runs: the host and folder of a personal one, or the repository of a cloud one. */
+function getAutomationRowPlace(row: IAutomationLayoutRow, separator = ' \u00B7 '): string {
+	return row.group === 'personal' && row.workspace ? `${row.hostLabel}${separator}${row.workspace}` : row.group === 'personal' ? row.hostLabel : row.workspace ?? row.hostLabel;
+}
+
+/** The facts at the top of an automation's details: its schedule and whether it's on, where it runs, and its next run. */
+function getAutomationDetailsFacts(row: IAutomationLayoutRow, now: number, separator = ' \u00B7 '): { readonly term: string; readonly description: string }[] {
+	const schedule = row.schedule.cronExpression ? `${row.schedule.label} (${row.schedule.cronExpression})` : row.schedule.label;
+	// On and Off are about the schedule; a manual automation has none, and Run now works either way.
+	const onOff = row.enabled ? localize('automationsLayout.details.on', "On") : localize('automationsLayout.details.off', "Off");
+	const facts = [
+		{ term: localize('automationsLayout.details.schedule', "Schedule"), description: row.automation?.schedule.interval === 'manual' ? schedule : `${schedule}${separator}${onOff}` },
+		{ term: localize('automationsLayout.details.runsOn', "Runs on"), description: getAutomationRowPlace(row, separator) },
+	];
+	const next = row.enabled && row.automation?.nextRunAt ? Date.parse(row.automation.nextRunAt) : Number.NaN;
+	if (next > now) {
+		facts.push({ term: localize('automationsLayout.details.nextRun', "Next run"), description: fromNow(next, true) });
+	}
+	return facts;
+}
+
+/** What opening a run does, read after the run. */
+function getRunDestinationText(run: IAutomationLayoutRun): string | undefined {
+	if (run.isSample) {
+		return localize('automationsLayout.details.sampleRun', "Sample run");
+	}
+	const destination = getAutomationRunDestination(run);
+	switch (destination.kind) {
+		case 'session': return localize('automationsLayout.details.opensSession', "Opens its session");
+		case 'external': return localize('automationsLayout.details.opensGitHub', "Opens on GitHub");
+		case 'none': return getRunNotOpenableReason(run);
+	}
+}
+
+/** One run of the details as text, for its row's label and the Accessible View. */
+function getDetailsRunText(run: IAutomationLayoutRun): string {
+	const preview = getResultPreview(run.result);
+	return joinSentences([
+		`${getRunStateTitle(run.state)}, ${getDetailsRunTime(run)}`,
+		getRunTriggerLabel(run.trigger),
+		getDetailsRunDescription(run),
+		preview && formatResultPreview(preview),
+		getRunDestinationText(run),
+	]);
+}
+
+/** Joins text into sentences, without doubling the stop of text that already ends one. */
+function joinSentences(parts: readonly (string | undefined)[]): string {
+	return parts.filter((part): part is string => !!part).map(part => /[.!?]$/.test(part) ? part : `${part}.`).join(' ');
 }
 
 function getNavLabel(id: AutomationsNavId): string {
@@ -243,6 +333,142 @@ function getRunStateDescription(state: AutomationRunState | undefined): string |
 	}
 }
 
+function getRunStateTitle(state: AutomationRunState): string {
+	switch (state) {
+		case 'completed': return localize('automationsLayout.runTitle.completed', "Succeeded");
+		case 'failed': return localize('automationsLayout.runTitle.failed', "Failed");
+		case 'running': return localize('automationsLayout.runTitle.running', "Running");
+		case 'needsInput': return localize('automationsLayout.runTitle.needsInput', "Needs input");
+	}
+}
+
+/** When a run finished, or when it started while it's still going. */
+function getDetailsRunTime(run: IAutomationLayoutRun): string {
+	return run.state === 'running' || run.state === 'needsInput'
+		? localize('automationsLayout.details.started', "started {0}", fromNow(run.startTime, true))
+		: fromNow(run.time, true);
+}
+
+/** The state of an automation's latest run, in a sentence. */
+function getLatestRunText(run: IAutomationLayoutRun): string {
+	switch (run.state) {
+		case 'completed': return localize('automationsLayout.details.latestSucceeded', "Succeeded {0}", fromNow(run.time, true));
+		case 'failed': return localize('automationsLayout.details.latestFailed', "Failed {0}", fromNow(run.time, true));
+		case 'running': return localize('automationsLayout.details.latestRunning', "Running, started {0}", fromNow(run.startTime, true));
+		case 'needsInput': return localize('automationsLayout.details.latestNeedsInput', "Needs input, started {0}", fromNow(run.startTime, true));
+	}
+}
+
+/** Runs that didn't start on their own schedule say so. */
+function getRunTriggerLabel(trigger: AutomationRunTrigger | undefined): string | undefined {
+	switch (trigger) {
+		case 'manual': return localize('automationsLayout.trigger.manual', "Manual run");
+		case 'catch_up': return localize('automationsLayout.trigger.catchUp', "Ran late");
+		default: return undefined;
+	}
+}
+
+/** What a successful run did: its summary, or its session's title when that says more than the automation's name and the run's first artifact. */
+function getRunSummary(run: IAutomationLayoutRun): string | undefined {
+	if (run.result?.summary) {
+		return run.result.summary;
+	}
+	if (run.title === run.automationName) {
+		return undefined;
+	}
+	const first = run.result?.artifacts[0];
+	return first?.label.toLocaleLowerCase().includes(run.title.toLocaleLowerCase()) ? undefined : run.title;
+}
+
+/** A run's line of text: what it did, why it failed, or what it's doing now. */
+function getDetailsRunDescription(run: IAutomationLayoutRun): string | undefined {
+	return run.state === 'completed' ? getRunSummary(run) ?? run.outcome : run.outcome;
+}
+
+/** Why a run can't be opened, when that isn't obvious. Sample runs say so when clicked, like on Runs. */
+function getRunNotOpenableReason(run: IAutomationLayoutRun): string | undefined {
+	const destination = getAutomationRunDestination(run);
+	if (destination.kind !== 'none') {
+		return undefined;
+	}
+	switch (destination.reason) {
+		case 'notLinked': return localize('automationsLayout.details.notLinked', "Its session isn't available yet.");
+		case 'noSession': return localize('automationsLayout.details.noSession', "No session was recorded for this run.");
+		case 'sample': return undefined;
+	}
+}
+
+/** Where the latest result came from, so a result never reads as the output of a newer run that failed or is still going. */
+function getResultSourceText(details: IAutomationLayoutDetails): string | undefined {
+	const result = details.latestResult;
+	const latest = details.latestRun;
+	if (!result || !latest) {
+		return undefined;
+	}
+	const when = fromNow(result.run.time, true);
+	if (result.fromLatestRun) {
+		return localize('automationsLayout.details.fromLatest', "From the latest run, {0}", when);
+	}
+	switch (latest.state) {
+		case 'failed': return localize('automationsLayout.details.fromEarlierFailed', "From an earlier run, {0}. The latest run failed.", when);
+		case 'running': return localize('automationsLayout.details.fromEarlierRunning', "From an earlier run, {0}. The latest run is still going.", when);
+		case 'needsInput': return localize('automationsLayout.details.fromEarlierNeedsInput', "From an earlier run, {0}. The latest run needs input.", when);
+		case 'completed': return localize('automationsLayout.details.fromEarlierNoResult', "From an earlier run, {0}. The latest run has no result to show.", when);
+	}
+}
+
+const ARTIFACT_ICONS: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
+	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
+	[SessionArtifactKind.Issue, Codicon.issues],
+	[SessionArtifactKind.Commit, Codicon.gitCommit],
+	[SessionArtifactKind.Website, Codicon.globe],
+	[SessionArtifactKind.File, Codicon.file],
+	[SessionArtifactKind.Resource, Codicon.link],
+]);
+
+function getArtifactKindLabel(kind: SessionArtifactKind): string {
+	switch (kind) {
+		case SessionArtifactKind.PullRequest: return localize('automationsLayout.artifact.pullRequest', "Pull request");
+		case SessionArtifactKind.Issue: return localize('automationsLayout.artifact.issue', "Issue");
+		case SessionArtifactKind.Commit: return localize('automationsLayout.artifact.commit', "Commit");
+		case SessionArtifactKind.Website: return localize('automationsLayout.artifact.website', "Website");
+		case SessionArtifactKind.File: return localize('automationsLayout.artifact.file', "File");
+		case SessionArtifactKind.Resource: return localize('automationsLayout.artifact.resource', "Resource");
+	}
+}
+
+function formatChanges(files: number, additions: number, deletions: number): string {
+	return files === 1
+		? localize('automationsLayout.details.changesOne', "1 file changed, +{0} -{1}", additions, deletions)
+		: localize('automationsLayout.details.changesMany', "{0} files changed, +{1} -{2}", files, additions, deletions);
+}
+
+/** A result's preview line: its first artifact, or the files it changed. */
+interface IResultPreview {
+	readonly icon: ThemeIcon;
+	readonly label: string;
+	/** Read with the label, such as "Pull request". */
+	readonly kind: string;
+	readonly more: number;
+}
+
+function getResultPreview(result: IAutomationLayoutRunResult | undefined): IResultPreview | undefined {
+	const [first, ...rest] = result?.artifacts ?? [];
+	if (first) {
+		return { icon: ARTIFACT_ICONS.get(first.kind) ?? Codicon.archive, label: first.label, kind: getArtifactKindLabel(first.kind), more: rest.length };
+	}
+	const changes = result?.changes;
+	if (changes && changes.files > 0) {
+		return { icon: Codicon.diffMultiple, label: formatChanges(changes.files, changes.additions, changes.deletions), kind: localize('automationsLayout.artifact.changes', "Changes"), more: 0 };
+	}
+	return undefined;
+}
+
+function formatResultPreview(preview: IResultPreview): string {
+	const text = `${preview.kind}: ${preview.label}`;
+	return preview.more > 0 ? localize('automationsLayout.details.previewMore', "{0}, and {1} more", text, preview.more) : text;
+}
+
 /**
  * Appends `text`, rendering `/automate` as code wherever {@link CODE_PLACEHOLDER} appears. With `argumentHint`, the
  * code reads like a chat input: `/automate` followed by the hint as dimmed placeholder text.
@@ -320,6 +546,7 @@ class AutomationsLayoutModel extends Disposable {
 					state = 'needsInput';
 				}
 				const time = getRunTime(run, state);
+				const startTime = Date.parse(run.startedAt);
 				return {
 					id: run.id,
 					automationId: run.automationId,
@@ -327,6 +554,14 @@ class AutomationsLayoutModel extends Disposable {
 					title: session?.title.read(reader) || automationName,
 					state,
 					time: Number.isNaN(time) ? 0 : time,
+					startTime: Number.isNaN(startTime) ? 0 : startTime,
+					trigger: run.trigger,
+					outcome: getRunOutcome(run, state, session, reader),
+					// Only what the run's session recorded; without the session nothing is known about its result.
+					result: session ? {
+						artifacts: getAutomationRunArtifacts(session.artifacts?.read(reader) ?? []),
+						changes: session.changesSummary?.read(reader),
+					} : undefined,
 					unread: (state === 'completed' || state === 'failed') && !!session && !session.isRead.read(reader),
 					isSample: false,
 					sessionResource: run.sessionResource,
@@ -439,6 +674,10 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly idPrefix = `automations-layout-${generateUuid()}`;
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 60_000));
 	private readonly createSpotlight = this._register(new MutableDisposable<DisposableStore>());
+	/** The open details panel's disposables. */
+	private readonly details = this._register(new MutableDisposable<DisposableStore>());
+	private detailsView: IDetailsView | undefined;
+	private readonly detailsOpen: IContextKey<boolean>;
 
 	constructor(
 		private readonly options: IAutomationsLayoutWidgetOptions,
@@ -468,6 +707,9 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.titleAccessory = modal ? constObservable(undefined) : this.model.sampleDataEnabled.map(sample => sample ? this.sampleLabel : undefined);
 		this.element = $('.automations-layout');
 		this.element.classList.add(modal ? 'automations-layout-modal' : 'automations-layout-chat-input');
+		// Scoped to the whole layout, so Escape closes the details wherever focus is in it.
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+		this.detailsOpen = AutomationsLayoutDetailsOpenContext.bindTo(scopedContextKeyService);
 
 		if (!modal) {
 			this.renderComposer(DOM.append(this.element, $('.automations-layout-composer')));
@@ -496,7 +738,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 		// Lets Escape clear a non-empty search before the modal's own Escape closes it.
-		const searchHasText = AutomationsLayoutSearchHasTextContext.bindTo(this._register(this.contextKeyService.createScoped(searchContainer)));
+		const searchHasText = AutomationsLayoutSearchHasTextContext.bindTo(this._register(scopedContextKeyService.createScoped(searchContainer)));
 		this._register(this.searchBox.onDidChange(value => {
 			searchHasText.set(!!value);
 			this.query.set(value, undefined);
@@ -666,6 +908,10 @@ export class AutomationsLayoutWidget extends Disposable {
 	}
 
 	focus(): void {
+		if (this.detailsView) {
+			this.detailsView.panel.focus({ preventScroll: true });
+			return;
+		}
 		if (this.composerView) {
 			this.composerView.focus();
 			return;
@@ -683,11 +929,15 @@ export class AutomationsLayoutWidget extends Disposable {
 		return true;
 	}
 
-	/** The selected pane as plain text, for the Accessible View. */
+	/** The selected pane as plain text, for the Accessible View, or the open details. */
 	getAccessibleContent(): string {
 		const nav = this.selectedNav.get();
 		const rows = this.model.rows.get();
 		const runs = this.model.runs.get();
+		const detailsRow = this.detailsView && rows.find(row => row.id === this.detailsView?.rowId);
+		if (detailsRow) {
+			return this.getDetailsAccessibleContent(detailsRow, getAutomationLayoutDetails(runs, detailsRow.id));
+		}
 		const examples = this.model.examples.get();
 		const warnings = this.model.warnings.get();
 		const counts = getAutomationNavCounts(rows, runs, examples);
@@ -718,7 +968,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			for (const section of getAutomationLayoutSections(filterAutomationRows(rows, query, this.filters.get()), nav)) {
 				lines.push('', section.id === 'repository' ? `${getSectionLabel(section.id, repository)}. ${REPOSITORY_DESCRIPTION}` : getSectionLabel(section.id, repository));
 				for (const row of section.rows) {
-					const place = row.group === 'personal' && row.workspace ? `${row.hostLabel}, ${row.workspace}` : row.group === 'personal' ? row.hostLabel : row.workspace ?? row.hostLabel;
+					const place = getAutomationRowPlace(row, ', ');
 					const lastRun = row.lastRun ? `${getRunStateLabel(row.lastRun.state, row.lastRun.time)}${row.lastRun.state === 'failed' ? `, ${getRunStateDescription('failed')}` : ''}` : localize('automationsLayout.notRunYet', "Not run yet");
 					lines.push(localize('automationsLayout.accessible.row', "{0}: {1}, runs on {2}, last run {3}, {4}. Prompt: {5}", row.name, row.schedule.cronExpression ? `${row.schedule.label} (${row.schedule.cronExpression})` : row.schedule.label, place, lastRun,
 						row.enabled ? localize('automationsLayout.rowAria.on', "on") : localize('automationsLayout.rowAria.off', "off"), row.prompt));
@@ -866,6 +1116,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		if (this.inlineCreation) {
 			return;
 		}
+		this.hideDetails();
 		const cancellation = this.inlineCreation = new CancellationTokenSource();
 		const host = DOM.append(this.paneContainer, $('.automations-layout-inline-create'));
 		this.paneContainer.classList.add('creating');
@@ -881,6 +1132,7 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	private setSelectedNav(nav: AutomationsNavId): void {
 		this.inlineCreation?.cancel();
+		this.hideDetails();
 		if (this.selectedNav.get() === nav) {
 			return;
 		}
@@ -1171,12 +1423,13 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.rovingItems.push(element);
 		element.dataset.key = `row:${row.id}`;
 		element.classList.toggle('disabled', !row.enabled);
+		element.classList.toggle('details-open', this.detailsView?.rowId === row.id);
 		const store = this.contentDisposables;
 
 		DOM.append(element, $('span.automations-layout-cell.automations-layout-name', undefined, row.name));
 		const meta = DOM.append(element, $('.automations-layout-meta'));
 		DOM.append(meta, $('span.automations-layout-cell.automations-layout-schedule', undefined, row.schedule.label));
-		const place = row.group === 'personal' && row.workspace ? `${row.hostLabel} \u00B7 ${row.workspace}` : row.group === 'personal' ? row.hostLabel : row.workspace ?? row.hostLabel;
+		const place = getAutomationRowPlace(row);
 		DOM.append(meta, $('span.automations-layout-cell.automations-layout-place', undefined, place));
 		const lastRun = DOM.append(meta, $('span.automations-layout-cell.automations-layout-last-run'));
 		if (row.lastRun) {
@@ -1257,10 +1510,11 @@ export class AutomationsLayoutWidget extends Disposable {
 		}, { groupId: 'automations-layout-rows' }));
 
 		store.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, event => {
+			// Run now and More actions handle their own clicks, and the switch's cell stops them.
 			if (DOM.isHTMLElement(event.target) && actions.contains(event.target)) {
 				return;
 			}
-			this.editRow(row);
+			this.openDetails(row.id);
 		}));
 		store.add(DOM.addDisposableListener(element, DOM.EventType.CONTEXT_MENU, event => {
 			DOM.EventHelper.stop(event, true);
@@ -1271,15 +1525,9 @@ export class AutomationsLayoutWidget extends Disposable {
 				return;
 			}
 			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Enter)) {
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(event, true);
-				this.editRow(row);
-			} else if (keyboardEvent.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(event, true);
-				if (!toggle.disabled) {
-					toggle.checked = !toggle.checked;
-					this.setRowEnabled(row, toggle.checked, toggle);
-				}
+				this.openDetails(row.id);
 			}
 		}));
 	}
@@ -1564,6 +1812,377 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	//#endregion
 
+	//#region Details
+
+	/**
+	 * Opens the details of an automation in a panel over the pane. The list keeps its selection, filters, search and
+	 * scroll position underneath, and gets focus back when the panel closes. Protected for the Component Explorer,
+	 * which opens it without a click.
+	 */
+	protected openDetails(rowId: string, options?: { readonly focus?: boolean }): void {
+		this.inlineCreation?.cancel();
+		// A row's prompt hover would otherwise stay up over the panel, and the Create with agent spotlight would point
+		// at a button the panel covers; it isn't marked as shown, so it comes back the next time.
+		this.hoverService.hideHover(true);
+		this.createSpotlight.clear();
+		const store = new DisposableStore();
+		this.details.value = store;
+		const view = this.detailsView = this.createDetailsView(rowId, store);
+		store.add(toDisposable(() => {
+			if (this.detailsView === view) {
+				this.detailsView = undefined;
+			}
+			this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`)?.classList.remove('details-open');
+		}));
+		this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`)?.classList.add('details-open');
+		store.add(autorun(reader => {
+			const row = this.model.rows.read(reader).find(candidate => candidate.id === rowId);
+			const runs = this.model.runs.read(reader);
+			const now = this.model.now.read(reader);
+			if (!row) {
+				// Removed while its details were open: close them after this update, unless they close first.
+				store.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
+					if (this.details.value === store) {
+						this.closeDetails();
+					}
+				}));
+				return;
+			}
+			this.renderDetails(view, row, getAutomationLayoutDetails(runs, row.id), now);
+		}));
+		// Without scrolling, so neither the page nor the list moves under the panel.
+		if (options?.focus !== false) {
+			view.panel.focus({ preventScroll: true });
+		}
+	}
+
+	/** Closes the details and puts focus back on the automation's row. Returns whether they were open. */
+	closeDetails(): boolean {
+		const view = this.detailsView;
+		if (!view) {
+			return false;
+		}
+		this.details.clear();
+		const items = this.getRovingItems();
+		const row = items.find(item => item.dataset.key === `row:${view.rowId}`) ?? items[0];
+		if (!row) {
+			this.focus();
+			return true;
+		}
+		for (const item of items) {
+			item.tabIndex = item === row ? 0 : -1;
+		}
+		// The list kept its scroll position under the panel; keep it.
+		row.focus({ preventScroll: true });
+		return true;
+	}
+
+	/** Closes the details without moving focus, when the pane changes under them. */
+	private hideDetails(): void {
+		this.details.clear();
+	}
+
+	private createDetailsView(rowId: string, store: DisposableStore): IDetailsView {
+		const host = DOM.append(this.paneContainer, $('.automations-layout-details-host'));
+		store.add(toDisposable(() => host.remove()));
+		// Everything the panel covers stays out of reach until it closes: the pane's header, toolbar and list.
+		for (const child of this.paneContainer.children) {
+			if (child !== host && DOM.isHTMLElement(child)) {
+				const wasInert = child.inert;
+				child.inert = true;
+				store.add(toDisposable(() => child.inert = wasInert));
+			}
+		}
+		this.detailsOpen.set(true);
+		store.add(toDisposable(() => this.detailsOpen.reset()));
+
+		const backdrop = DOM.append(host, $('.automations-layout-details-backdrop'));
+		store.add(DOM.addDisposableListener(backdrop, DOM.EventType.CLICK, () => this.closeDetails()));
+		const panel = DOM.append(host, $('section.automations-layout-details', { role: 'region', tabindex: '-1' }));
+		const header = DOM.append(panel, $('.automations-layout-details-header'));
+		const title = DOM.append(header, $('h2.automations-layout-details-title'));
+		title.id = `${this.idPrefix}-details-title`;
+		panel.setAttribute('aria-labelledby', title.id);
+		const sampleLabel = DOM.append(header, $('span.automations-layout-sample-label', { tabindex: '0' }, localize('automationsLayout.sampleData', "Sample data")));
+		store.add(this.hoverService.setupDelayedHover(sampleLabel, {
+			content: localize('automationsLayout.sampleDataHover', "Prototype only. These automations aren't real."),
+			style: HoverStyle.Pointer,
+		}, { setupKeyboardEvents: true }));
+		const close = store.add(new Button(header, { supportIcons: true, ariaLabel: localize('automationsLayout.details.closeAria', "Close details"), title: localize('automationsLayout.details.close', "Close") }));
+		close.label = `$(${Codicon.close.id})`;
+		close.element.classList.add('automations-layout-icon-button', 'automations-layout-details-close');
+		store.add(close.onDidClick(() => this.closeDetails()));
+		const body = DOM.append(panel, $('.automations-layout-details-body'));
+		// For hosts without keybindings, like the Component Explorer; elsewhere the Close Details keybinding runs first.
+		store.add(DOM.addDisposableListener(host, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (!event.defaultPrevented && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
+				DOM.EventHelper.stop(event, true);
+				this.closeDetails();
+			}
+		}));
+		return { rowId, panel, title, sampleLabel, body, content: store.add(new DisposableStore()), keyed: new Map(), activeRun: undefined };
+	}
+
+	/** Marks an element of the details that can have focus, so a later render can give it focus back. */
+	private setDetailsKey(view: IDetailsView, element: HTMLElement, key: string): void {
+		element.dataset.detailsKey = key;
+		view.keyed.set(key, element);
+	}
+
+	private renderDetails(view: IDetailsView, row: IAutomationLayoutRow, details: IAutomationLayoutDetails, now: number): void {
+		const active = DOM.getActiveElement();
+		const focusedKey = DOM.isHTMLElement(active) && view.body.contains(active)
+			? [...view.keyed].find(([, element]) => element === active || element.contains(active))?.[0] ?? ''
+			: undefined;
+		const scrollTop = view.body.scrollTop;
+		view.content.clear();
+		view.keyed.clear();
+		DOM.clearNode(view.body);
+		view.title.textContent = row.name;
+		view.sampleLabel.style.display = row.isSample ? '' : 'none';
+
+		// What it is: its purpose, when and where it runs, and what can be done with it.
+		DOM.append(view.body, $('p.automations-layout-details-prompt', undefined, row.prompt));
+		const facts = DOM.append(view.body, $('dl.automations-layout-details-facts'));
+		for (const fact of getAutomationDetailsFacts(row, now)) {
+			DOM.append(facts, $('dt', undefined, fact.term));
+			DOM.append(facts, $('dd', undefined, fact.description));
+		}
+		this.renderDetailsActions(view, row);
+
+		// How it's going: its latest run, the latest thing it produced, and every run.
+		this.renderDetailsLatestRun(view.body, details);
+		if (details.runs.length > 0) {
+			this.renderDetailsResult(view, details);
+			this.renderDetailsRuns(view, row, details);
+		}
+
+		view.body.scrollTop = scrollTop;
+		if (focusedKey !== undefined) {
+			(view.keyed.get(focusedKey) ?? view.panel).focus({ preventScroll: true });
+		}
+	}
+
+	private renderDetailsActions(view: IDetailsView, row: IAutomationLayoutRow): void {
+		const actions = DOM.append(view.body, $('.automations-layout-details-actions'));
+		if (!row.eventTriggered) {
+			const runButton = view.content.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('automationsLayout.runNowNamed', "Run {0} now", row.name) }));
+			runButton.label = `$(${Codicon.play.id}) ${localize('automationsLayout.runNow', "Run now")}`;
+			runButton.enabled = row.canRun;
+			this.setDetailsKey(view, runButton.element, 'run');
+			view.content.add(runButton.onDidClick(() => this.runRow(row)));
+		}
+		const editButton = view.content.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.editNamed', "Edit {0}", row.name) }));
+		editButton.label = localize('automationsLayout.edit', "Edit");
+		editButton.enabled = row.canUpdate;
+		this.setDetailsKey(view, editButton.element, 'edit');
+		view.content.add(editButton.onDidClick(() => this.editRow(row)));
+	}
+
+	private renderDetailsLatestRun(parent: HTMLElement, details: IAutomationLayoutDetails): void {
+		const section = this.appendDetailsSection(parent, localize('automationsLayout.details.latestRun', "Latest run"));
+		const run = details.latestRun;
+		const state = DOM.append(section, $('.automations-layout-details-state'));
+		if (!run) {
+			state.textContent = localize('automationsLayout.details.notRunYet', "Not run yet.");
+			return;
+		}
+		const icon = DOM.append(state, renderIcon(getRunStateIcon(run.state) ?? Codicon.circleOutline));
+		icon.classList.add(`state-${run.state}`);
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(state, $('span', undefined, getLatestRunText(run)));
+		if (run.outcome) {
+			DOM.append(section, $('p.automations-layout-details-outcome', undefined, run.outcome));
+		}
+	}
+
+	private renderDetailsResult(view: IDetailsView, details: IAutomationLayoutDetails): void {
+		const section = this.appendDetailsSection(view.body, localize('automationsLayout.details.latestResult', "Latest result"));
+		const latest = details.latestResult;
+		if (!latest) {
+			DOM.append(section, $('p.automations-layout-details-quiet', undefined, localize('automationsLayout.details.noResult', "No results to show yet.")));
+			return;
+		}
+		const run = latest.run;
+		const card = DOM.append(section, $('.automations-layout-details-result'));
+		this.setDetailsKey(view, card, 'result');
+		const preview = getResultPreview(run.result);
+		if (preview) {
+			this.appendResultPreview(card, preview);
+		}
+		const summary = getRunSummary(run);
+		if (summary) {
+			DOM.append(card, $('p.automations-layout-details-result-summary', undefined, summary));
+		}
+		const changes = run.result?.changes;
+		if (run.result?.artifacts.length && changes && changes.files > 0) {
+			DOM.append(card, $('p.automations-layout-details-result-changes', undefined, formatChanges(changes.files, changes.additions, changes.deletions)));
+		}
+		const source = getResultSourceText(details) ?? '';
+		DOM.append(card, $('p.automations-layout-details-result-source', undefined, source));
+		if (run.isSample || getAutomationRunDestination(run).kind !== 'none') {
+			card.classList.add('can-open');
+			card.tabIndex = 0;
+			card.setAttribute('role', 'button');
+			card.setAttribute('aria-label', joinSentences([localize('automationsLayout.details.latestResult', "Latest result"), preview && formatResultPreview(preview), summary, source, getRunDestinationText(run)]));
+			this.addDetailsActivation(view, card, () => this.openDetailsRun(run));
+		}
+	}
+
+	private renderDetailsRuns(view: IDetailsView, row: IAutomationLayoutRow, details: IAutomationLayoutDetails): void {
+		const section = this.appendDetailsSection(view.body, localize('automationsLayout.details.runs', "Runs"), String(details.runs.length));
+		const list = DOM.append(section, $('.automations-layout-details-runs', { role: 'list', 'aria-label': localize('automationsLayout.details.runsAria', "Runs of {0}, newest first", row.name) }));
+		const items = details.runs.map(run => this.renderDetailsRun(view, list, run));
+		// One tab stop in the list, like the automation list: the run that last had focus, or the newest.
+		const tabStop = items.find(item => item.dataset.detailsKey === view.activeRun) ?? items[0];
+		for (const item of items) {
+			item.tabIndex = item === tabStop ? 0 : -1;
+		}
+		view.content.add(DOM.addDisposableListener(list, DOM.EventType.FOCUS_IN, (event: FocusEvent) => {
+			const target = items.find(item => item === event.target);
+			if (target) {
+				view.activeRun = target.dataset.detailsKey;
+				for (const item of items) {
+					item.tabIndex = item === target ? 0 : -1;
+				}
+			}
+		}));
+		view.content.add(DOM.addDisposableListener(list, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const index = items.findIndex(item => item === event.target);
+			if (index < 0) {
+				return;
+			}
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			let target: HTMLElement | undefined;
+			if (keyboardEvent.equals(KeyCode.DownArrow)) {
+				target = items[Math.min(items.length - 1, index + 1)];
+			} else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+				target = items[Math.max(0, index - 1)];
+			} else if (keyboardEvent.equals(KeyCode.Home)) {
+				target = items[0];
+			} else if (keyboardEvent.equals(KeyCode.End)) {
+				target = items[items.length - 1];
+			}
+			if (target) {
+				DOM.EventHelper.stop(event, true);
+				target.focus();
+			}
+		}));
+	}
+
+	private renderDetailsRun(view: IDetailsView, list: HTMLElement, run: IAutomationLayoutRun): HTMLElement {
+		const destination = getAutomationRunDestination(run);
+		// Sample runs respond like the sample runs on Runs: they say they're samples.
+		const canOpen = run.isSample || destination.kind !== 'none';
+		const element = DOM.append(list, $('.automations-layout-details-run', { role: 'listitem', tabindex: '-1' }));
+		this.setDetailsKey(view, element, `run:${run.id}`);
+		element.classList.toggle('can-open', canOpen);
+		const icon = DOM.append(element, renderIcon(getRunStateIcon(run.state) ?? Codicon.circleOutline));
+		icon.classList.add('automations-layout-details-run-icon', `state-${run.state}`);
+		icon.setAttribute('aria-hidden', 'true');
+		const main = DOM.append(element, $('.automations-layout-details-run-main'));
+		const heading = DOM.append(main, $('.automations-layout-details-run-heading'));
+		DOM.append(heading, $('span.automations-layout-details-run-state', undefined, getRunStateTitle(run.state)));
+		const trigger = getRunTriggerLabel(run.trigger);
+		DOM.append(heading, $('span.automations-layout-details-run-time', undefined, trigger ? `${getDetailsRunTime(run)} \u00B7 ${trigger}` : getDetailsRunTime(run)));
+		const description = getDetailsRunDescription(run);
+		if (description) {
+			DOM.append(main, $('p.automations-layout-details-run-description', undefined, description));
+		}
+		const preview = getResultPreview(run.result);
+		if (preview) {
+			this.appendResultPreview(main, preview);
+		}
+		const reason = getRunNotOpenableReason(run);
+		if (reason) {
+			DOM.append(main, $('p.automations-layout-details-run-note', undefined, reason));
+		}
+		const opens = DOM.append(element, $('span.automations-layout-details-run-opens', { 'aria-hidden': 'true' }));
+		// Only runs that really open something show where they go; sample runs say they're samples, like on Runs.
+		if (destination.kind !== 'none') {
+			opens.appendChild(renderIcon(destination.kind === 'external' ? Codicon.linkExternal : Codicon.chevronRight));
+		}
+		if (canOpen) {
+			this.addDetailsActivation(view, element, () => this.openDetailsRun(run));
+		}
+		element.setAttribute('aria-label', getDetailsRunText(run));
+		return element;
+	}
+
+	private appendDetailsSection(parent: HTMLElement, title: string, count?: string): HTMLElement {
+		const section = DOM.append(parent, $('section.automations-layout-details-section'));
+		const heading = DOM.append(section, $('h3.automations-layout-details-heading', undefined, title));
+		if (count) {
+			// The space keeps the heading's name "Runs 4"; the flex layout doesn't render it.
+			heading.append(' ');
+			DOM.append(heading, $('span.automations-layout-details-count', undefined, count));
+		}
+		return section;
+	}
+
+	private appendResultPreview(parent: HTMLElement, preview: IResultPreview): void {
+		const line = DOM.append(parent, $('.automations-layout-details-preview'));
+		DOM.append(line, renderIcon(preview.icon)).setAttribute('aria-hidden', 'true');
+		DOM.append(line, $('span.automations-layout-details-preview-label', undefined, preview.label));
+		if (preview.more > 0) {
+			DOM.append(line, $('span.automations-layout-details-preview-more', undefined, localize('automationsLayout.details.more', "+{0} more", preview.more)));
+		}
+	}
+
+	/** Click, Enter and Space open the run of an item in the details. */
+	private addDetailsActivation(view: IDetailsView, element: HTMLElement, activate: () => void): void {
+		view.content.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, activate));
+		view.content.add(DOM.addDisposableListener(element, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (event.target === element && (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space))) {
+				DOM.EventHelper.stop(event, true);
+				activate();
+			}
+		}));
+	}
+
+	/** Opens a run's own session, or its page on GitHub, with the same helper as Runs; sample runs only say they're samples. */
+	private openDetailsRun(run: IAutomationLayoutRun): void {
+		if (run.isSample) {
+			this.actions.showSampleNotice();
+			return;
+		}
+		if (getAutomationRunDestination(run).kind !== 'none') {
+			void this.openRun(run);
+		}
+	}
+
+	private getDetailsAccessibleContent(row: IAutomationLayoutRow, details: IAutomationLayoutDetails): string {
+		const lines = [localize('automationsLayout.accessible.details', "Details of {0}", row.name)];
+		if (row.isSample) {
+			lines.push(localize('automationsLayout.accessible.sample', "Sample data is on. Sample automations are prototype only and aren't real."));
+		}
+		lines.push('', localize('automationsLayout.accessible.prompt', "Prompt: {0}", row.prompt));
+		for (const fact of getAutomationDetailsFacts(row, Date.now(), ', ')) {
+			lines.push(`${fact.term}: ${fact.description}`);
+		}
+		const latest = details.latestRun;
+		lines.push('', localize('automationsLayout.accessible.latestRun', "Latest run: {0}", latest
+			? joinSentences([getLatestRunText(latest), latest.outcome])
+			: localize('automationsLayout.details.notRunYet', "Not run yet.")));
+		if (latest) {
+			const result = details.latestResult;
+			const preview = result && getResultPreview(result.run.result);
+			const summary = result && getRunSummary(result.run);
+			lines.push(localize('automationsLayout.accessible.latestResult', "Latest result: {0}", result
+				? joinSentences([preview && formatResultPreview(preview), summary, getResultSourceText(details)])
+				: localize('automationsLayout.details.noResult', "No results to show yet.")));
+			lines.push('', localize('automationsLayout.accessible.runs', "Runs, newest first:"));
+			for (const run of details.runs) {
+				lines.push(getDetailsRunText(run));
+			}
+		}
+		lines.push('', localize('automationsLayout.accessible.closeDetails', "Escape closes the details and returns to the automation's row."));
+		return lines.join('\n');
+	}
+
+	//#endregion
+
 	//#region Keyboard
 
 	private getRovingItems(): HTMLElement[] {
@@ -1679,6 +2298,20 @@ function getRunTime(run: IAutomationRun, state: AutomationRunState): number {
 	return Date.parse(state === 'running' || state === 'needsInput'
 		? run.updatedAt ?? run.startedAt
 		: run.completedAt ?? run.updatedAt ?? run.startedAt);
+}
+
+/** The host's words about a run: why it failed, how it ended, or what its session is doing now. */
+function getRunOutcome(run: IAutomationRun, state: AutomationRunState, session: ISession | undefined, reader: IReader): string | undefined {
+	switch (state) {
+		case 'failed':
+			return run.errorMessage || run.statusDescription || undefined;
+		case 'completed':
+			return run.statusDescription || undefined;
+		default: {
+			const live = session && isActiveSessionStatus(session.status.read(reader)) ? session.description.read(reader) : undefined;
+			return (live && renderAsPlaintext(live, { omitMarkdownSyntax: true }).trim()) || run.statusDescription || undefined;
+		}
+	}
 }
 
 function hostOrder(hostKey: string): number {

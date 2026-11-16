@@ -824,3 +824,372 @@
 	flex-direction: column;
 	min-height: 0;
 }
+
+/* Details: a panel over the pane, with the list blurred behind it */
+
+.automations-layout-pane {
+	position: relative;
+}
+
+.automations-layout-row.details-open {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.automations-layout-details-host {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	overflow: hidden;
+}
+
+/* Solid unless the blur below applies: high contrast, reduced transparency and forced colors keep it opaque. */
+.automations-layout-details-backdrop {
+	position: absolute;
+	inset: 0;
+	background-color: var(--vscode-editor-background);
+}
+
+.automations-layout-chat-input .automations-layout-details-backdrop {
+	background-color: var(--session-view-background, var(--vscode-sideBar-background));
+}
+
+@supports (backdrop-filter: blur(4px)) and (background-color: color-mix(in srgb, black 50%, transparent)) {
+	@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+		.monaco-workbench:not(.hc-black):not(.hc-light) .automations-layout-details-backdrop {
+			background-color: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent);
+			backdrop-filter: blur(4px);
+		}
+
+		.monaco-workbench:not(.hc-black):not(.hc-light) .automations-layout-chat-input .automations-layout-details-backdrop {
+			background-color: color-mix(in srgb, var(--session-view-background, var(--vscode-sideBar-background)) 40%, transparent);
+		}
+	}
+}
+
+/* Opaque, so its text never sits on the blur. */
+.automations-layout-details {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	width: min(440px, 100%);
+	box-sizing: border-box;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background-color: var(--vscode-editorWidget-background);
+	box-shadow: 0 0 16px var(--vscode-widget-shadow);
+	color: var(--vscode-foreground);
+}
+
+.automations-layout.narrow .automations-layout-details {
+	width: 100%;
+}
+
+/* The chat input layout's rows reach 8px past its column: the backdrop covers them too, and the panel keeps to the column. */
+.automations-layout-chat-input .automations-layout-details-host {
+	left: calc(-1 * var(--vscode-spacing-size80));
+	right: calc(-1 * var(--vscode-spacing-size80));
+}
+
+.automations-layout-chat-input .automations-layout-details {
+	right: var(--vscode-spacing-size80);
+	width: min(440px, calc(100% - 2 * var(--vscode-spacing-size80)));
+}
+
+.automations-layout-chat-input.narrow .automations-layout-details {
+	width: calc(100% - 2 * var(--vscode-spacing-size80));
+}
+
+.hc-black .automations-layout-details,
+.hc-light .automations-layout-details {
+	border-left-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
+/* Focus lands on the panel only so that it's announced; its controls show their own focus. Outranks the workbench's
+ * outline for every focused `[tabindex="-1"]`. */
+.monaco-workbench .automations-layout-details[tabindex="-1"]:focus {
+	outline: none;
+}
+
+.monaco-enable-motion .automations-layout-details-backdrop,
+.monaco-enable-motion .automations-layout-details {
+	animation: automations-layout-details-fade-in 150ms ease-out;
+}
+
+@keyframes automations-layout-details-fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+/* On the pane title's line, so the name sits where the pane's title does. */
+.automations-layout-details-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size160) var(--vscode-spacing-size120) var(--vscode-spacing-size240);
+}
+
+.automations-layout-details-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 26px;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-header .automations-layout-sample-label {
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.automations-layout-details-header .automations-layout-details-close {
+	flex-shrink: 0;
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.automations-layout-details-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	flex: 1;
+	min-height: 0;
+	padding: 0 var(--vscode-spacing-size240) var(--vscode-spacing-size240);
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.automations-layout-details-prompt {
+	margin: 0;
+	line-height: 20px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-facts {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	column-gap: var(--vscode-spacing-size160);
+	row-gap: var(--vscode-spacing-size40);
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}
+
+.automations-layout-details-facts dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-facts dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-layout-details-actions .monaco-button {
+	box-sizing: border-box;
+	width: auto;
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+.automations-layout-details-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+}
+
+.automations-layout-details-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-count {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.automations-layout-details-state {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	line-height: 20px;
+}
+
+.automations-layout-details-state .codicon,
+.automations-layout-details-preview .codicon {
+	flex-shrink: 0;
+}
+
+/* Under the state's text, past its icon. */
+.automations-layout-details-outcome {
+	margin: 0;
+	padding-left: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-quiet {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-result {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.automations-layout-details-result p {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-result .automations-layout-details-preview-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-layout-details-result-changes,
+.automations-layout-details-result-source {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-preview {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.automations-layout-details-preview .codicon {
+	color: var(--vscode-icon-foreground);
+}
+
+.automations-layout-details-preview-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-details-preview-more {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Runs: rows pad their text by 8px, and reach 8px past the column so that text sits on its edge. */
+.automations-layout-details-runs {
+	display: flex;
+	flex-direction: column;
+	margin: 0 calc(-1 * var(--vscode-spacing-size80));
+}
+
+.automations-layout-details-run {
+	display: grid;
+	grid-template-columns: var(--vscode-codiconFontSize) minmax(0, 1fr) var(--vscode-codiconFontSize);
+	align-items: start;
+	column-gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automations-layout-details-result.can-open,
+.automations-layout-details-run.can-open {
+	cursor: pointer;
+}
+
+.automations-layout-details-result.can-open:hover,
+.automations-layout-details-run.can-open:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-details-result:focus,
+.automations-layout-details-run:focus {
+	outline: none;
+}
+
+.automations-layout-details-result:focus-visible,
+.automations-layout-details-run:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-layout-details-run-icon.codicon,
+.automations-layout-details-run-opens {
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.automations-layout-details-run-opens {
+	display: flex;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-run-main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+.automations-layout-details-run-heading {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	line-height: 20px;
+}
+
+.automations-layout-details-run-state {
+	flex-shrink: 0;
+}
+
+.automations-layout-details-run-time {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-run-description,
+.automations-layout-details-run-note {
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-run-description {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.automations-layout-details-run .automations-layout-details-preview {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}

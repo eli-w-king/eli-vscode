@@ -5,8 +5,10 @@
 
 import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -20,6 +22,10 @@ import { ContextViewService } from '../../../../../platform/contextview/browser/
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -60,22 +66,132 @@ import { AbstractChatView } from '../../../../../workbench/contrib/sessions/brow
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 import { AutomationsLayoutWidget } from '../../browser/views/automationsLayoutWidget.js';
 import { AutomationsNavId } from '../../browser/views/automationsLayoutModel.js';
 
 class FixtureAutomationService extends mock<IAutomationService>() {
-	override readonly automations: IObservable<readonly IAutomationDescriptor[]> = constObservable([]);
-	override readonly runs: IObservable<readonly IAutomationRun[]> = constObservable([]);
+	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;
+	override readonly runs: IObservable<readonly IAutomationRun[]>;
 	override readonly catalogueState: IObservable<AutomationCatalogueState> = constObservable('ready');
 	override readonly unavailableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
 	override readonly availableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
 	override historyState: IObservable<AutomationCatalogueState> = constObservable('ready');
+
+	constructor(automations: readonly IAutomationDescriptor[] = [], runs: readonly IAutomationRun[] = []) {
+		super();
+		this.automations = constObservable(automations);
+		this.runs = constObservable(runs);
+	}
+
 	override async refresh(): Promise<void> { }
-	override getAutomation(): IAutomationDescriptor | undefined { return undefined; }
+	override getAutomation(id: string): IAutomationDescriptor | undefined { return this.automations.get().find(automation => automation.id === id); }
 	override canRunAutomation(): boolean { return true; }
 	override canUpdateAutomation(): boolean { return true; }
 	override canDeleteAutomation(): boolean { return true; }
+}
+
+/** Opens an automation's details without a click, the way a click on its row does. */
+class FixtureAutomationsLayoutWidget extends AutomationsLayoutWidget {
+	showDetails(rowId: string): void {
+		this.openDetails(rowId, { focus: false });
+	}
+}
+
+/** Real automations, with runs whose sessions recorded what they produced, for the details outside sample data. */
+interface ILiveFixtureData {
+	readonly automations: readonly IAutomationDescriptor[];
+	readonly runs: readonly IAutomationRun[];
+	readonly sessions: ReadonlyMap<string, ISession>;
+}
+
+function nextTime(now: number, hour: number, onDay: (day: number) => boolean): number {
+	const date = new Date(now);
+	date.setHours(hour, 0, 0, 0);
+	while (date.getTime() <= now || !onDay(date.getDay())) {
+		date.setDate(date.getDate() + 1);
+	}
+	return date.getTime();
+}
+
+function fixtureSession(title: string, status: SessionStatus, options: { readonly description?: string; readonly artifacts?: readonly ISessionArtifact[]; readonly changes?: { files: number; additions: number; deletions: number } } = {}): ISession {
+	return new class extends mock<ISession>() {
+		override readonly title = constObservable(title);
+		override readonly status = constObservable(status);
+		override readonly isRead = constObservable(status !== SessionStatus.Error);
+		override readonly description = constObservable(options.description ? new MarkdownString(options.description) : undefined);
+		override readonly artifacts = constObservable(options.artifacts ?? []);
+		override readonly changesSummary = constObservable(options.changes);
+	}();
+}
+
+function getLiveFixtureData(now: number): ILiveFixtureData {
+	const minute = 60_000;
+	const day = 24 * 60 * minute;
+	const iso = (time: number) => new Date(time).toISOString();
+	const target = { kind: 'workspace', folderUri: URI.file('/Users/eli/code/vscode'), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, isolation: { kind: 'default' } } as const;
+	const flakyTests: IAutomationDescriptor = {
+		id: 'fixture.flakyTests',
+		name: 'Find flaky tests',
+		prompt: 'Run the unit tests three times, list the tests that fail only some of the time, and open a pull request that skips them with a link to a tracking issue.',
+		schedule: { interval: 'weekdays', scheduleDay: 0, scheduleHour: 9, scheduleMinute: 0 },
+		target,
+		enabled: true,
+		createdAt: iso(now - 30 * day),
+		updatedAt: iso(now - 30 * day),
+		nextRunAt: iso(nextTime(now, 9, weekday => weekday >= 1 && weekday <= 5)),
+	};
+	const dependencyCheck: IAutomationDescriptor = {
+		id: 'fixture.dependencyCheck',
+		name: 'Weekly dependency check',
+		prompt: 'Check for outdated npm dependencies, read their changelogs, and list the updates that are safe to take.',
+		schedule: { interval: 'weekly', scheduleDay: 1, scheduleHour: 9, scheduleMinute: 0 },
+		target,
+		enabled: true,
+		createdAt: iso(now - 2 * day),
+		updatedAt: iso(now - 2 * day),
+		nextRunAt: iso(nextTime(now, 9, weekday => weekday === 1)),
+	};
+	const session = (run: number) => URI.parse(`agent-host-copilotcli:/fixture-run-${run}`);
+	const runs: IAutomationRun[] = [
+		{ id: 'fixture.run.4', automationId: flakyTests.id, status: 'running', trigger: 'manual', sessionResource: session(4), startedAt: iso(now - 4 * minute), updatedAt: iso(now - minute) },
+		{ id: 'fixture.run.3', automationId: flakyTests.id, status: 'failed', trigger: 'schedule', sessionResource: session(3), startedAt: iso(now - day - 30 * minute), completedAt: iso(now - day), errorMessage: 'The test run timed out after 30 minutes.' },
+		{ id: 'fixture.run.2', automationId: flakyTests.id, status: 'completed', trigger: 'schedule', sessionResource: session(2), startedAt: iso(now - 2 * day - 20 * minute), completedAt: iso(now - 2 * day) },
+		// A run whose host never linked a session.
+		{ id: 'fixture.run.1', automationId: flakyTests.id, status: 'completed', trigger: 'catch_up', startedAt: iso(now - 5 * day - 10 * minute), completedAt: iso(now - 5 * day) },
+	];
+	const sessions = new Map<string, ISession>([
+		[session(4).toString(), fixtureSession(flakyTests.name, SessionStatus.InProgress, { description: 'Running the unit tests, second of three passes' })],
+		[session(3).toString(), fixtureSession(flakyTests.name, SessionStatus.Error)],
+		[session(2).toString(), fixtureSession('Skip 2 flaky sessions list tests', SessionStatus.Completed, {
+			artifacts: [
+				{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: '#4127 Skip 2 flaky sessions list tests', isArtifact: true, link: URI.parse('https://github.com/eli-w-king/eli-vscode/pull/4127') },
+				// A reference the session only pointed at, not something it produced.
+				{ id: 'issue', kind: SessionArtifactKind.Issue, label: '#4100 Sessions list tests are flaky', isArtifact: false, link: URI.parse('https://github.com/eli-w-king/eli-vscode/issues/4100') },
+			],
+			changes: { files: 2, additions: 14, deletions: 3 },
+		})],
+	]);
+	return { automations: [flakyTests, dependencyCheck], runs, sessions };
+}
+
+/**
+ * Shows what a click in the fixture asked for, since nothing here can open a session or a link: the exact session or
+ * link a run would open, or the notification a sample shows. Also kept on the container for probes.
+ */
+function acknowledge(container: HTMLElement, kind: 'session' | 'external' | 'notification', text: string): void {
+	container.dataset[kind === 'session' ? 'requestedSession' : kind === 'external' ? 'requestedExternal' : 'notification'] = text;
+	let element = container.querySelector<HTMLElement>(':scope > .automations-layout-fixture-acknowledgement');
+	if (!element) {
+		if (container.style.position === '') {
+			container.style.position = 'relative';
+		}
+		element = append(container, $('.automations-layout-fixture-acknowledgement', { role: 'status' }));
+		element.style.cssText = 'position: absolute; left: 12px; bottom: 12px; z-index: 10; padding: 4px 8px; border-radius: var(--vscode-cornerRadius-small); border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder)); background: var(--vscode-editorWidget-background); color: var(--vscode-foreground); font-size: 12px;';
+	}
+	element.textContent = kind === 'session' ? `Fixture: would open session ${text}` : kind === 'external' ? `Fixture: would open ${text}` : `Fixture notification: ${text}`;
 }
 
 /**
@@ -112,17 +228,48 @@ interface ILayoutFixtureOptions {
 	readonly height: number;
 	readonly sampleData: boolean;
 	readonly nav?: AutomationsNavId;
+	/** Real automations and runs instead of none. */
+	readonly live?: boolean;
+	/** The automation whose details are open. */
+	readonly details?: string;
 }
 
 // The widget dates sample runs from the clock it starts with and labels them with fromNow on every
 // later render, so the clicked-through fixtures must stay on real time.
 const realTime = { enabled: false };
+const highContrastThemes = ['darkHighContrast', 'lightHighContrast'] as const;
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	DesignAHome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: realTime,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all' }),
+	}),
+	DesignADetailsSuccess: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
+		additionalThemes: highContrastThemes,
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all', details: 'sample.inboxTriage' }),
+	}),
+	DesignADetailsFailure: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
+		additionalThemes: highContrastThemes,
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all', details: 'sample.variationLab' }),
+	}),
+	DesignADetailsEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: false, live: true, nav: 'all', details: 'fixture.dependencyCheck' }),
+	}),
+	DesignADetailsLive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: realTime,
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: false, live: true, nav: 'all', details: 'fixture.flakyTests' }),
+	}),
+	DesignADetailsNarrow: defineComponentFixture({
+		virtualTime: realTime,
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 760, height: 760, sampleData: true, nav: 'all', details: 'sample.variationLab' }),
 	}),
 	DesignAPersonal: defineComponentFixture({
 		virtualTime: realTime,
@@ -237,6 +384,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 		[ENVIRONMENT_PICKER_SETTING]: true,
 		[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
 	});
+	const live = options.live ? getLiveFixtureData(Date.now()) : undefined;
 	const contextKeyService = new ContextKeyService(configurationService);
 	const storageService = ctx.disposableStore.add(new InMemoryStorageService());
 	if (options.nav) {
@@ -275,8 +423,16 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				override getContainer() { return ctx.container; }
 				override isVisible() { return true; }
 			}());
-			reg.defineInstance(IAutomationService, new FixtureAutomationService());
+			reg.defineInstance(IAutomationService, new FixtureAutomationService(live?.automations, live?.runs));
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
+			// Opening a run, a link or a notification only says what it asked for.
+			reg.defineInstance(IOpenerService, { ...NullOpenerService, open: async (resource: URI | string) => { acknowledge(ctx.container, 'external', resource.toString()); return true; } });
+			reg.defineInstance(INotificationService, new class extends TestNotificationService {
+				override info(message: NotificationMessage) {
+					acknowledge(ctx.container, 'notification', typeof message === 'string' ? message : message instanceof Error ? message.message : message.toString());
+					return super.info(message);
+				}
+			}());
 			// Create manually shows the real form inline in the modal.
 			reg.defineInstance(IAutomationDialogService, inlineDialogService);
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
@@ -309,7 +465,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidDeleteSession = Event.None;
 				override readonly onDidChangeSessions = Event.None;
-				override getSession() { return undefined; }
+				override getSession(resource: URI) { return live?.sessions.get(resource.toString()); }
 				override getSessions() { return []; }
 				override isQuickChatTargetAvailable() { return false; }
 				override readonly automationSession = constObservable(undefined);
@@ -320,6 +476,7 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				override isNewSessionTargetAvailable() { return false; }
 				override discardAutomationSession() { }
 				override readonly onDidEndNewSessionRequest = Event.None;
+				override readonly onDidAcceptNewSessionRequest = Event.None;
 				override createNewSessionSlot(): INewSessionDraftSlot & { dispose(): void } {
 					return { id: 'fixture', newSession: constObservable(undefined), createNewSession: () => { throw new Error('not in fixtures'); }, createQuickChat: () => { throw new Error('not in fixtures'); }, discardNewSession: () => { }, dispose: () => { } };
 				}
@@ -331,7 +488,10 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 				readonly gridShown = constObservable([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession = constObservable(undefined);
-				override async openSession(): Promise<void> { }
+				// Records the exact session a run asked for, instead of opening one.
+				override async openSession(resource: URI): Promise<void> {
+					acknowledge(ctx.container, 'session', resource.toString());
+				}
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
@@ -354,9 +514,12 @@ function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptio
 
 	if (options.variant === 'modal') {
 		ctx.container.style.backgroundColor = 'var(--vscode-editor-background)';
-		const widget = ctx.disposableStore.add(instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'modal' }));
+		const widget = ctx.disposableStore.add(instantiationService.createInstance(FixtureAutomationsLayoutWidget, { variant: 'modal' }));
 		ctx.container.appendChild(widget.element);
 		widget.layout(options.width, options.height);
+		if (options.details) {
+			widget.showDetails(options.details);
+		}
 		return;
 	}
 
