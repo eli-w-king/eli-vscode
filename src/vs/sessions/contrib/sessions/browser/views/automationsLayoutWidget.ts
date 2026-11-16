@@ -1913,13 +1913,14 @@ export class AutomationsLayoutWidget extends Disposable {
 		close.element.classList.add('automations-layout-icon-button', 'automations-layout-details-close');
 		store.add(close.onDidClick(() => this.closeDetails()));
 		const body = DOM.append(panel, $('.automations-layout-details-body'));
-		// For hosts without keybindings, like the Component Explorer; elsewhere the Close Details keybinding runs first.
+		// Capture phase, so Escape from anywhere in the details closes them, even from buttons that would blur themselves
+		// and swallow it. Stopping it here also keeps it from window keybindings like Clear Search.
 		store.add(DOM.addDisposableListener(host, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			if (!event.defaultPrevented && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
 				DOM.EventHelper.stop(event, true);
 				this.closeDetails();
 			}
-		}));
+		}, true));
 		return { rowId, panel, title, sampleLabel, body, content: store.add(new DisposableStore()), keyed: new Map(), activeRun: undefined };
 	}
 
