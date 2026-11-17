@@ -364,7 +364,7 @@ suite('Automations layout composer requests', () => {
 suite('Automations layout details panel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(): AutomationsLayoutWidget {
+	function createWidget(contextMenuVisible = false): AutomationsLayoutWidget {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService({ chat: { automations: { sampleData: true } } });
 		const storageService = store.add(new InMemoryStorageService());
@@ -372,7 +372,9 @@ suite('Automations layout details panel', () => {
 		instantiationService.stubInstance(AutomationsLayoutActions, {});
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		contextKeyService.createKey('contextMenuVisible', contextMenuVisible);
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IContextMenuService, {});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -451,6 +453,51 @@ suite('Automations layout details panel', () => {
 			sameRow: row === element(widget, '[data-key="row:sample.variationLab"]'),
 			consumed: escape.defaultPrevented,
 		}, { closed: true, focused: true, search: 'lab', sameRow: true, consumed: true });
+	});
+
+	test('Escape from adjacent list controls preserves search and restores focus to the row', () => {
+		const widget = createWidget();
+		const search = widget.element.querySelector<HTMLInputElement>('.automations-layout-search input')!;
+		search.value = 'lab';
+		search.dispatchEvent(new mainWindow.Event('input'));
+		const row = element(widget, '[data-key="row:sample.variationLab"]');
+		const controls = row.querySelectorAll<HTMLElement>('.monaco-button:not(.disabled)');
+		assert.ok(controls.length > 0);
+		for (const control of controls) {
+			row.click();
+			row.focus();
+			control.focus();
+			assert.strictEqual(DOM.getActiveElement(), control);
+			control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			assert.deepStrictEqual({
+				closed: !widget.element.querySelector('.automations-layout-details'),
+				focused: DOM.getActiveElement() === row,
+				search: search.value,
+			}, { closed: true, focused: true, search: 'lab' });
+		}
+	});
+
+	test('Escape in a non-empty search clears it before closing details', () => {
+		const widget = createWidget();
+		const search = widget.element.querySelector<HTMLInputElement>('.automations-layout-search input')!;
+		search.value = 'lab';
+		search.dispatchEvent(new mainWindow.Event('input'));
+		element(widget, '[data-key="row:sample.variationLab"]').click();
+		search.focus();
+		search.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		assert.strictEqual(search.value, '');
+		assert.ok(widget.element.querySelector('.automations-layout-details'));
+		assert.strictEqual(DOM.getActiveElement(), search);
+	});
+
+	test('Escape leaves context-menu dismissal ahead of closing details', () => {
+		const widget = createWidget(true);
+		element(widget, '[data-key="row:sample.inboxTriage"]').click();
+		const control = element(widget, '.automations-layout-row .monaco-button:not(.disabled)');
+		control.closest<HTMLElement>('.automations-layout-row')!.focus();
+		control.focus();
+		control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		assert.ok(widget.element.querySelector('.automations-layout-details'));
 	});
 
 	test('narrow layouts show details alone and restore the split and list on the same instance', () => {

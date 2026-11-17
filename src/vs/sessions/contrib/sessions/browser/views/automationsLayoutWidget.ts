@@ -2019,10 +2019,14 @@ export class AutomationsLayoutWidget extends Disposable {
 		close.element.classList.add('automations-layout-icon-button', 'automations-layout-details-close');
 		store.add(close.onDidClick(() => this.closeDetails()));
 		const body = DOM.append(panel, $('.automations-layout-details-body'));
-		// Capture phase, so Escape from anywhere in the details closes them, even from buttons that would blur themselves
-		// and swallow it. Stopping it here also keeps it from window keybindings like Clear Search.
-		store.add(DOM.addDisposableListener(panel, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			if (!event.defaultPrevented && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
+		// Native buttons swallow Escape before window keybindings, including those in the adjacent list.
+		// Leave search and menu dismissal to their own handlers.
+		store.add(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.defaultPrevented || !new StandardKeyboardEvent(event).equals(KeyCode.Escape) || this.contextKeyService.getContextKeyValue<boolean>('contextMenuVisible')) {
+				return;
+			}
+			const target = event.target;
+			if (DOM.isHTMLElement(target) && (panel.contains(target) || target.closest('.monaco-button'))) {
 				DOM.EventHelper.stop(event, true);
 				this.closeDetails();
 			}
