@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -765,17 +765,36 @@ export class AutomationsLayoutWidget extends Disposable {
 
 		if (modal) {
 			this.createButtons = DOM.append(this.toolbar, $('.automations-layout-create-buttons'));
-			const newButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, ariaLabel: localize('automationsLayout.createWithAgent', "Create with agent"), title: localize('automationsLayout.createWithAgentTitle', "Close Automations and describe the automation in a new session") }));
-			newButton.label = localize('automationsLayout.createWithAgent', "Create with agent");
-			newButton.element.classList.add('automations-layout-new-button');
+			const newButton = this._register(new ButtonWithDropdown(this.createButtons, {
+				...defaultButtonStyles,
+				title: localize('automationsLayout.createWithAgentTitle', "Close Automations and describe the automation in a new session"),
+				contextMenuProvider: this.contextMenuService,
+				actions: [toAction({
+					id: 'sessions.automations.createManually',
+					label: localize('automationsLayout.createManuallyDropdown', "Create Manually"),
+					run: () => this.createManuallyInPane(),
+				})],
+				addPrimaryActionToDropdown: false,
+			}));
+			newButton.label = localize('automationsLayout.createWithAgent', "Create with Agent");
+			newButton.primaryButton.element.classList.add('automations-layout-new-button');
 			this._register(newButton.onDidClick(() => this.startNewAutomation()));
+			this._register(DOM.addDisposableListener(newButton.primaryButton.element, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+				if (new StandardKeyboardEvent(event).equals(KeyCode.RightArrow)) {
+					newButton.dropdownButton.focus();
+					DOM.EventHelper.stop(event, true);
+				}
+			}));
+			this._register(DOM.addDisposableListener(newButton.dropdownButton.element, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+				if (new StandardKeyboardEvent(event).equals(KeyCode.LeftArrow)) {
+					newButton.primaryButton.focus();
+					DOM.EventHelper.stop(event, true);
+				}
+			}));
 			this._register(markOnboardingTarget(newButton.element, 'sessions.automations.create', {
-				onDidActivate: Event.map(newButton.onDidClick, () => undefined),
+				onDidActivate: Event.map(Event.any(newButton.onDidClick, newButton.dropdownButton.onDidClick), () => undefined),
 			}));
 			this.showCreateWithAgentSpotlightOnce(newButton.element);
-			const manualButton = this._register(new Button(this.createButtons, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('automationsLayout.createManually', "Create manually"), title: localize('automationsLayout.createManuallyTitle', "Create an automation with a form") }));
-			manualButton.label = localize('automationsLayout.createManually', "Create manually");
-			this._register(manualButton.onDidClick(() => void this.createManuallyInPane()));
 			this._register(toDisposable(() => this.inlineCreation?.cancel()));
 
 			this.paneHeader = DOM.append(this.paneContainer, $('.automations-layout-pane-header'));
@@ -1800,7 +1819,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		store.add(overlay.onDidSkip(dismiss));
 		store.add(overlay.onDidLoseTarget(dismiss));
 		overlay.show(target, {
-			title: localize('automationsLayout.createSpotlight.title', "Create with agent"),
+			title: localize('automationsLayout.createSpotlight.title', "Create with Agent"),
 			description: localize('automationsLayout.createSpotlight.description', "Closes Automations and starts a new session. Describe what you want automated and the agent sets it up."),
 			nextButtonLabel: localize('automationsLayout.createSpotlight.gotIt', "Got it"),
 			stepIndex: 0,
