@@ -13,7 +13,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
@@ -87,6 +87,8 @@ const SIDEBAR_DEFAULT_WIDTH = 200;
 const SIDEBAR_MIN_WIDTH = 150;
 const SIDEBAR_MAX_WIDTH = 350;
 const CONTENT_MIN_WIDTH = 400;
+const DETAILS_DEFAULT_WIDTH = 440;
+const DETAILS_MIN_WIDTH = 320;
 const NARROW_WIDTH = 640;
 const REPOSITORY_DESCRIPTION = localize('automationsLayout.repositoryDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access.");
 const DEFAULT_OPEN_SECTIONS: Readonly<Record<AutomationsSectionId, boolean>> = { personal: true, cloud: true, repository: false, disabled: false };
@@ -644,7 +646,15 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	private readonly navContainer: HTMLElement;
 	private readonly navItems: INavItem[] = [];
+	private readonly tabsRow: HTMLElement | undefined;
 	private readonly paneContainer: HTMLElement;
+	private readonly paneSplitContainer: HTMLElement;
+	private readonly paneSplitView: SplitView<number>;
+	private readonly detailsContainer: HTMLElement;
+	private readonly paneDimension = { width: 0, height: 0 };
+	private detailsWidth = DETAILS_DEFAULT_WIDTH;
+	private detailsOnly = false;
+	private readonly detailsTransition = this._register(new RunOnceScheduler(() => this.paneSplitContainer.classList.remove('details-transition'), 150));
 	private readonly paneHeader: HTMLElement | undefined;
 	private readonly paneTitle: HTMLElement | undefined;
 	private readonly paneDescription: HTMLElement | undefined;
@@ -722,6 +732,50 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.paneContainer = $('.automations-layout-pane');
 		this.paneContainer.setAttribute('role', 'tabpanel');
 		this.paneContainer.id = `${this.idPrefix}-pane`;
+		this.paneSplitContainer = $('.automations-layout-pane-split');
+		this.detailsContainer = $('.automations-layout-details-host');
+		this.paneSplitView = this._register(new SplitView<number>(this.paneSplitContainer, { orientation: Orientation.HORIZONTAL, proportionalLayout: false }));
+		const paneDimension = this.paneDimension;
+		this.paneSplitView.addView({
+			onDidChange: Event.None,
+			element: this.paneContainer,
+			get minimumSize() { return Math.min(CONTENT_MIN_WIDTH, paneDimension.width); },
+			maximumSize: Number.POSITIVE_INFINITY,
+			priority: LayoutPriority.High,
+			layout: (width, _offset, height) => {
+				this.paneContainer.style.width = `${width}px`;
+				if (height !== undefined) {
+					this.paneContainer.style.height = `${height}px`;
+				}
+				if (width > 0) {
+					this.updateNarrow(width);
+				}
+			},
+		}, Sizing.Distribute, undefined, true);
+		this.paneSplitView.addView({
+			onDidChange: Event.None,
+			element: this.detailsContainer,
+			get minimumSize() { return Math.min(DETAILS_MIN_WIDTH, paneDimension.width); },
+			maximumSize: Number.POSITIVE_INFINITY,
+			priority: LayoutPriority.Low,
+			layout: (width, _offset, height) => {
+				this.detailsContainer.style.width = `${width}px`;
+				if (height !== undefined) {
+					this.detailsContainer.style.height = `${height}px`;
+				}
+			},
+		}, Sizing.Invisible(DETAILS_DEFAULT_WIDTH), undefined, true);
+		this._register(this.paneSplitView.onDidSashChange(() => {
+			if (this.detailsView && !this.detailsOnly) {
+				this.detailsWidth = this.paneSplitView.getViewSize(1);
+			}
+		}));
+		this._register(this.paneSplitView.onDidSashReset(() => {
+			if (this.detailsView && !this.detailsOnly) {
+				this.detailsWidth = DETAILS_DEFAULT_WIDTH;
+				this.paneSplitView.resizeView(1, this.detailsWidth);
+			}
+		}));
 
 		this.sampleLabel = $('span.automations-layout-sample-label', undefined, localize('automationsLayout.sampleData', "Sample data"));
 		this._register(this.hoverService.setupDelayedHover(this.sampleLabel, {
@@ -818,7 +872,7 @@ export class AutomationsLayoutWidget extends Disposable {
 				maximumSize: SIDEBAR_MAX_WIDTH,
 				layout: width => { sidebar.style.width = `${width}px`; },
 			}, this.storageService.getNumber(SIDEBAR_WIDTH_STORAGE_KEY, StorageScope.PROFILE, SIDEBAR_DEFAULT_WIDTH), undefined, true);
-			const pane = this.paneContainer;
+			const pane = this.paneSplitContainer;
 			this.splitView.addView({
 				onDidChange: Event.None,
 				element: pane,
@@ -829,7 +883,7 @@ export class AutomationsLayoutWidget extends Disposable {
 					if (height !== undefined) {
 						pane.style.height = `${height}px`;
 					}
-					this.updateNarrow(width);
+					this.layoutPane(width, height ?? this.paneDimension.height);
 				},
 			}, Sizing.Distribute, undefined, true);
 			this._register(this.splitView.onDidSashChange(() => {
@@ -845,17 +899,17 @@ export class AutomationsLayoutWidget extends Disposable {
 				}
 			}));
 		} else {
-			const tabsRow = DOM.append(this.element, $('.automations-layout-tabs-row'));
+			const tabsRow = this.tabsRow = DOM.append(this.element, $('.automations-layout-tabs-row'));
 			tabsRow.appendChild(this.navContainer);
 			const tools = DOM.append(tabsRow, $('.automations-layout-tabs-tools'));
 			tools.appendChild(this.toolbar);
-			this.element.appendChild(this.paneContainer);
+			this.element.appendChild(this.paneSplitContainer);
 			const resizeObserver = this._register(new DOM.DisposableResizeObserver('automationsLayout.chatInput', entries => {
 				for (const entry of entries) {
-					this.updateNarrow(entry.contentRect.width);
+					this.layoutPane(entry.contentRect.width, entry.contentRect.height);
 				}
 			}, DOM.getWindow(this.element)));
-			this._register(resizeObserver.observe(this.element));
+			this._register(resizeObserver.observe(this.paneSplitContainer));
 		}
 
 		this.resultCount = DOM.append(this.paneContainer, $('.automations-layout-result-count', { role: 'status', 'aria-live': 'polite' }));
@@ -922,8 +976,36 @@ export class AutomationsLayoutWidget extends Disposable {
 		if (this.splitView) {
 			this.splitView.layout(width, height);
 		} else {
-			this.updateNarrow(width);
+			this.layoutPane(this.paneSplitContainer.clientWidth, this.paneSplitContainer.clientHeight);
 		}
+	}
+
+	private layoutPane(width: number, height: number): void {
+		this.paneDimension.width = width;
+		this.paneDimension.height = height;
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+		this.tabsRow?.classList.toggle('narrow', width < NARROW_WIDTH);
+		const wasDetailsOnly = this.detailsOnly;
+		const wasDetailsVisible = this.paneSplitView.isViewVisible(1);
+		this.detailsOnly = !!this.detailsView && width < CONTENT_MIN_WIDTH + DETAILS_MIN_WIDTH;
+		const moveFocus = this.detailsOnly && DOM.isAncestorOfActiveElement(this.paneContainer);
+		this.paneSplitContainer.classList.toggle('details-only', this.detailsOnly);
+		this.paneSplitView.setViewVisible(0, !this.detailsOnly);
+		this.paneSplitView.setViewVisible(1, !!this.detailsView);
+		this.paneSplitView.layout(width, height);
+		if (this.detailsView && !this.detailsOnly && (!wasDetailsVisible || wasDetailsOnly)) {
+			this.paneSplitView.resizeView(1, this.detailsWidth);
+		}
+		if (moveFocus) {
+			this.detailsView?.panel.focus({ preventScroll: true });
+		}
+	}
+
+	private animateDetailsLayout(): void {
+		this.paneSplitContainer.classList.add('details-transition');
+		this.detailsTransition.schedule();
 	}
 
 	focus(): void {
@@ -1442,7 +1524,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		this.rovingItems.push(element);
 		element.dataset.key = `row:${row.id}`;
 		element.classList.toggle('disabled', !row.enabled);
-		element.classList.toggle('details-open', this.detailsView?.rowId === row.id);
+		this.updateDetailsRowState(element, row.id);
 		const store = this.contentDisposables;
 
 		DOM.append(element, $('span.automations-layout-cell.automations-layout-name', undefined, row.name));
@@ -1833,17 +1915,12 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	//#region Details
 
-	/**
-	 * Opens the details of an automation in a panel over the pane. The list keeps its selection, filters, search and
-	 * scroll position underneath, and gets focus back when the panel closes. Protected for the Component Explorer,
-	 * which opens it without a click.
-	 */
+	/** Opens details beside the list without recreating its rows or changing its filters. */
 	protected openDetails(rowId: string, options?: { readonly focus?: boolean }): void {
 		this.inlineCreation?.cancel();
-		// A row's prompt hover would otherwise stay up over the panel, and the Create with agent spotlight would point
-		// at a button the panel covers; it isn't marked as shown, so it comes back the next time.
 		this.hoverService.hideHover(true);
 		this.createSpotlight.clear();
+		const wasOpen = !!this.detailsView;
 		const store = new DisposableStore();
 		this.details.value = store;
 		const view = this.detailsView = this.createDetailsView(rowId, store);
@@ -1851,9 +1928,15 @@ export class AutomationsLayoutWidget extends Disposable {
 			if (this.detailsView === view) {
 				this.detailsView = undefined;
 			}
-			this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`)?.classList.remove('details-open');
+			const row = this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`);
+			if (row) {
+				this.updateDetailsRowState(row, rowId);
+			}
 		}));
-		this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`)?.classList.add('details-open');
+		const row = this.getRovingItems().find(item => item.dataset.key === `row:${rowId}`);
+		if (row) {
+			this.updateDetailsRowState(row, rowId);
+		}
 		store.add(autorun(reader => {
 			const row = this.model.rows.read(reader).find(candidate => candidate.id === rowId);
 			const runs = this.model.runs.read(reader);
@@ -1869,9 +1952,23 @@ export class AutomationsLayoutWidget extends Disposable {
 			}
 			this.renderDetails(view, row, getAutomationLayoutDetails(runs, row.id), now);
 		}));
-		// Without scrolling, so neither the page nor the list moves under the panel.
+		if (!wasOpen && options?.focus !== false) {
+			this.animateDetailsLayout();
+		}
+		this.layoutPane(this.paneDimension.width, this.paneDimension.height);
 		if (options?.focus !== false) {
 			view.panel.focus({ preventScroll: true });
+		}
+	}
+
+	private updateDetailsRowState(element: HTMLElement, rowId: string): void {
+		const selected = this.detailsView?.rowId === rowId;
+		element.classList.toggle('details-open', selected);
+		element.setAttribute('aria-current', String(selected));
+		if (selected) {
+			element.setAttribute('aria-controls', `${this.idPrefix}-details`);
+		} else {
+			element.removeAttribute('aria-controls');
 		}
 	}
 
@@ -1881,7 +1978,8 @@ export class AutomationsLayoutWidget extends Disposable {
 		if (!view) {
 			return false;
 		}
-		this.details.clear();
+		this.animateDetailsLayout();
+		this.hideDetails();
 		const items = this.getRovingItems();
 		const row = items.find(item => item.dataset.key === `row:${view.rowId}`) ?? items[0];
 		if (!row) {
@@ -1891,7 +1989,6 @@ export class AutomationsLayoutWidget extends Disposable {
 		for (const item of items) {
 			item.tabIndex = item === row ? 0 : -1;
 		}
-		// The list kept its scroll position under the panel; keep it.
 		row.focus({ preventScroll: true });
 		return true;
 	}
@@ -1899,25 +1996,15 @@ export class AutomationsLayoutWidget extends Disposable {
 	/** Closes the details without moving focus, when the pane changes under them. */
 	private hideDetails(): void {
 		this.details.clear();
+		this.layoutPane(this.paneDimension.width, this.paneDimension.height);
 	}
 
 	private createDetailsView(rowId: string, store: DisposableStore): IDetailsView {
-		const host = DOM.append(this.paneContainer, $('.automations-layout-details-host'));
-		store.add(toDisposable(() => host.remove()));
-		// Everything the panel covers stays out of reach until it closes: the pane's header, toolbar and list.
-		for (const child of this.paneContainer.children) {
-			if (child !== host && DOM.isHTMLElement(child)) {
-				const wasInert = child.inert;
-				child.inert = true;
-				store.add(toDisposable(() => child.inert = wasInert));
-			}
-		}
 		this.detailsOpen.set(true);
 		store.add(toDisposable(() => this.detailsOpen.reset()));
 
-		const backdrop = DOM.append(host, $('.automations-layout-details-backdrop'));
-		store.add(DOM.addDisposableListener(backdrop, DOM.EventType.CLICK, () => this.closeDetails()));
-		const panel = DOM.append(host, $('section.automations-layout-details', { role: 'region', tabindex: '-1' }));
+		const panel = DOM.append(this.detailsContainer, $('section.automations-layout-details', { role: 'region', tabindex: '-1', id: `${this.idPrefix}-details` }));
+		store.add(toDisposable(() => panel.remove()));
 		const header = DOM.append(panel, $('.automations-layout-details-header'));
 		const title = DOM.append(header, $('h2.automations-layout-details-title'));
 		title.id = `${this.idPrefix}-details-title`;
@@ -1934,7 +2021,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		const body = DOM.append(panel, $('.automations-layout-details-body'));
 		// Capture phase, so Escape from anywhere in the details closes them, even from buttons that would blur themselves
 		// and swallow it. Stopping it here also keeps it from window keybindings like Clear Search.
-		store.add(DOM.addDisposableListener(host, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+		store.add(DOM.addDisposableListener(panel, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			if (!event.defaultPrevented && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
 				DOM.EventHelper.stop(event, true);
 				this.closeDetails();

@@ -39,6 +39,12 @@
 	min-height: 0;
 }
 
+.automations-layout-pane-split {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
 .automations-layout-sidebar {
 	height: 100%;
 	box-sizing: border-box;
@@ -262,7 +268,7 @@
 	min-width: 0;
 }
 
-.automations-layout-chat-input.narrow .automations-layout-tabs-tools {
+.automations-layout-tabs-row.narrow .automations-layout-tabs-tools {
 	flex-basis: 100%;
 	justify-content: flex-start;
 }
@@ -825,86 +831,39 @@
 	min-height: 0;
 }
 
-/* Details: a panel over the pane, with the list blurred behind it */
-
-.automations-layout-pane {
-	position: relative;
-}
+/* Details share the available space with the list. */
 
 .automations-layout-row.details-open {
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .automations-layout-details-host {
-	position: absolute;
-	inset: 0;
-	z-index: 1;
+	height: 100%;
 	overflow: hidden;
 }
 
-/* Solid unless the blur below applies: high contrast, reduced transparency and forced colors keep it opaque. */
-.automations-layout-details-backdrop {
-	position: absolute;
-	inset: 0;
-	background-color: var(--vscode-editor-background);
-}
-
-.automations-layout-chat-input .automations-layout-details-backdrop {
-	background-color: var(--session-view-background, var(--vscode-sideBar-background));
-}
-
-@supports (backdrop-filter: blur(4px)) and (background-color: color-mix(in srgb, black 50%, transparent)) {
-	@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
-		.monaco-workbench:not(.hc-black):not(.hc-light) .automations-layout-details-backdrop {
-			background-color: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent);
-			backdrop-filter: blur(4px);
-		}
-
-		.monaco-workbench:not(.hc-black):not(.hc-light) .automations-layout-chat-input .automations-layout-details-backdrop {
-			background-color: color-mix(in srgb, var(--session-view-background, var(--vscode-sideBar-background)) 40%, transparent);
-		}
-	}
-}
-
-/* Opaque, so its text never sits on the blur. */
 .automations-layout-details {
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
 	display: flex;
 	flex-direction: column;
-	width: min(440px, 100%);
+	width: 100%;
+	height: 100%;
 	box-sizing: border-box;
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
-	background-color: var(--vscode-editorWidget-background);
-	box-shadow: 0 0 16px var(--vscode-widget-shadow);
+	background-color: var(--vscode-editor-background);
 	color: var(--vscode-foreground);
 }
 
-.automations-layout.narrow .automations-layout-details {
-	width: 100%;
-}
-
-/* The chat input layout's rows reach 8px past its column: the backdrop covers them too, and the panel keeps to the column. */
-.automations-layout-chat-input .automations-layout-details-host {
-	left: calc(-1 * var(--vscode-spacing-size80));
-	right: calc(-1 * var(--vscode-spacing-size80));
-}
-
 .automations-layout-chat-input .automations-layout-details {
-	right: var(--vscode-spacing-size80);
-	width: min(440px, calc(100% - 2 * var(--vscode-spacing-size80)));
+	background-color: var(--session-view-background, var(--vscode-sideBar-background));
 }
 
-.automations-layout-chat-input.narrow .automations-layout-details {
-	width: calc(100% - 2 * var(--vscode-spacing-size80));
+.automations-layout-pane-split.details-only .automations-layout-details {
+	border-left: none;
 }
 
 .hc-black .automations-layout-details,
 .hc-light .automations-layout-details {
 	border-left-color: var(--vscode-contrastBorder);
-	box-shadow: none;
 }
 
 /* Focus lands on the panel only so that it's announced; its controls show their own focus. Outranks the workbench's
@@ -913,14 +872,20 @@
 	outline: none;
 }
 
-.monaco-enable-motion .automations-layout-details-backdrop,
-.monaco-enable-motion .automations-layout-details {
-	animation: automations-layout-details-fade-in 150ms ease-out;
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-enable-motion .automations-layout-pane-split.details-transition > .monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view {
+		transition: width 150ms ease-out, left 150ms ease-out;
+	}
+
+	.monaco-enable-motion .automations-layout-pane-split.details-transition .automations-layout-details {
+		animation: automations-layout-details-enter 150ms ease-out;
+	}
 }
 
-@keyframes automations-layout-details-fade-in {
+@keyframes automations-layout-details-enter {
 	from {
 		opacity: 0;
+		transform: translateX(var(--vscode-spacing-size160));
 	}
 }
 

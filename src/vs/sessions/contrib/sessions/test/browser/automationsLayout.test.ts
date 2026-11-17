@@ -4,18 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionArtifact, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
 import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getThisMachineLabel, groupAutomationRunsByDay, hasAutomationRunResult, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentSkill, IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AutomationsLayoutActions } from '../../browser/views/automationsLayoutActions.js';
+import { AutomationsLayoutWidget } from '../../browser/views/automationsLayoutWidget.js';
 import { getAutomationsSampleData } from '../../browser/views/automationsLayoutSampleData.js';
 import { describeAutomationSchedule, describeCronExpression, formatAutomationTime } from '../../browser/views/automationsLayoutSchedule.js';
 
@@ -333,6 +357,133 @@ suite('Automations layout composer requests', () => {
 			reference: { text: '#notes.md', attachments: 2 },
 			prefixed: { query: '/automate Daily digest', attachments: 1 },
 			withoutSkill: { query: '/automate Daily digest', attachments: 0 },
+		});
+	});
+});
+
+suite('Automations layout details panel', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWidget(): AutomationsLayoutWidget {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ chat: { automations: { sampleData: true } } });
+		const storageService = store.add(new InMemoryStorageService());
+		storageService.store('sessions.automations.layout.createSpotlightShown', true, StorageScope.PROFILE, StorageTarget.USER);
+		instantiationService.stubInstance(AutomationsLayoutActions, {});
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IContextMenuService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(INotificationService, {});
+		instantiationService.stub(IClipboardService, {});
+		instantiationService.stub(IChatViewFactory, {});
+		instantiationService.stub(ISessionsService, {});
+		instantiationService.stub(ISessionsManagementService, { onDidChangeSessions: Event.None });
+		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None });
+		instantiationService.stub(IChatService, { chatModels: constObservable([]) });
+		instantiationService.stub(IAgentPluginService, { plugins: constObservable([]) });
+		instantiationService.stub(IAutomationService, {
+			automations: constObservable([]),
+			runs: constObservable([]),
+			catalogueState: constObservable<AutomationCatalogueState>('ready'),
+			availableProviders: constObservable([]),
+			unavailableProviders: constObservable([]),
+			refresh: async () => { },
+		});
+		const widget = store.add(instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'modal' }));
+		widget.element.style.width = '1200px';
+		mainWindow.document.body.appendChild(widget.element);
+		store.add(toDisposable(() => widget.element.remove()));
+		widget.layout(1200, 760);
+		return widget;
+	}
+
+	function element(widget: AutomationsLayoutWidget, selector: string): HTMLElement {
+		const result = widget.element.querySelector<HTMLElement>(selector);
+		assert.ok(result, selector);
+		return result;
+	}
+
+	test('shares space with the interactive list and switches details without recreating rows', () => {
+		const widget = createWidget();
+		const pane = element(widget, '.automations-layout-pane');
+		const before = pane.getBoundingClientRect().width;
+		const first = element(widget, '[data-key="row:sample.inboxTriage"]');
+		const second = element(widget, '[data-key="row:sample.variationLab"]');
+		first.click();
+		const firstState = {
+			narrowed: pane.getBoundingClientRect().width < before,
+			overlaps: pane.getBoundingClientRect().right > element(widget, '.automations-layout-details').getBoundingClientRect().left,
+			inert: !!pane.querySelector('[inert]') || pane.inert,
+			backdrop: !!widget.element.querySelector('.automations-layout-details-backdrop'),
+		};
+		second.click();
+		assert.deepStrictEqual({
+			firstState,
+			sameRows: first === element(widget, '[data-key="row:sample.inboxTriage"]') && second === element(widget, '[data-key="row:sample.variationLab"]'),
+			title: element(widget, '.automations-layout-details-title').textContent,
+			current: [first.getAttribute('aria-current'), second.getAttribute('aria-current')],
+		}, {
+			firstState: { narrowed: true, overlaps: false, inert: false, backdrop: false },
+			sameRows: true,
+			title: 'Nightly variation lab',
+			current: ['false', 'true'],
+		});
+	});
+
+	test('Escape from a details control preserves search and restores focus to the row', () => {
+		const widget = createWidget();
+		const search = widget.element.querySelector<HTMLInputElement>('.automations-layout-search input')!;
+		search.value = 'lab';
+		search.dispatchEvent(new mainWindow.Event('input'));
+		const row = element(widget, '[data-key="row:sample.variationLab"]');
+		row.click();
+		const close = element(widget, '.automations-layout-details-close');
+		close.focus();
+		const escape = new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+		close.dispatchEvent(escape);
+		assert.deepStrictEqual({
+			closed: !widget.element.querySelector('.automations-layout-details'),
+			focused: DOM.getActiveElement() === row,
+			search: search.value,
+			sameRow: row === element(widget, '[data-key="row:sample.variationLab"]'),
+			consumed: escape.defaultPrevented,
+		}, { closed: true, focused: true, search: 'lab', sameRow: true, consumed: true });
+	});
+
+	test('narrow layouts show details alone and restore the split and list on the same instance', () => {
+		const widget = createWidget();
+		const row = element(widget, '[data-key="row:sample.inboxTriage"]');
+		row.click();
+		const panel = element(widget, '.automations-layout-details');
+		const initialWidth = panel.getBoundingClientRect().width;
+		widget.element.style.width = '760px';
+		widget.layout(760, 760);
+		const narrow = {
+			detailsOnly: element(widget, '.automations-layout-pane-split').classList.contains('details-only'),
+			fullWidth: panel.getBoundingClientRect().width === element(widget, '.automations-layout-pane-split').getBoundingClientRect().width,
+			listHidden: element(widget, '.automations-layout-pane').getBoundingClientRect().width === 0,
+		};
+		widget.element.style.width = '1200px';
+		widget.layout(1200, 760);
+		const wide = {
+			detailsOnly: element(widget, '.automations-layout-pane-split').classList.contains('details-only'),
+			panelWidthRestored: panel.getBoundingClientRect().width === initialWidth,
+			listVisible: element(widget, '.automations-layout-pane').getBoundingClientRect().width > 0,
+		};
+		widget.closeDetails();
+		assert.deepStrictEqual({
+			narrow,
+			wide,
+			sameRow: row === element(widget, '[data-key="row:sample.inboxTriage"]'),
+			focused: DOM.getActiveElement() === row,
+		}, {
+			narrow: { detailsOnly: true, fullWidth: true, listHidden: true },
+			wide: { detailsOnly: false, panelWidthRestored: true, listVisible: true },
+			sameRow: true,
+			focused: true,
 		});
 	});
 });

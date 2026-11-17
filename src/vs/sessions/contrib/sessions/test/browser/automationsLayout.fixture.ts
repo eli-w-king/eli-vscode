@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module -- Fixture schemas run in Component Explorer's bundler.
+import { z } from 'zod';
 import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -251,6 +253,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		additionalThemes: highContrastThemes,
 		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all', details: 'sample.inboxTriage' }),
 	}),
+	DesignADetailsInteractive: defineComponentFixture({
+		virtualTime: realTime,
+		inputSchema: z.object({
+			enableAnimations: z.boolean().default(true),
+			overrideFocus: z.boolean().default(false),
+		}),
+		render: ctx => renderLayout(ctx, { variant: 'modal', width: 1200, height: 760, sampleData: true, nav: 'all', details: 'sample.inboxTriage' }),
+	}),
 	DesignADetailsFailure: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		virtualTime: realTime,
@@ -378,6 +388,7 @@ class FixtureInlineAutomationDialogService extends mock<IAutomationDialogService
 }
 
 function renderLayout(ctx: ComponentFixtureContext, options: ILayoutFixtureOptions): void {
+	ctx.container.classList.add('monaco-enable-motion');
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true, layout: options.variant, sampleData: options.sampleData } },
 		[RemoteAgentHostsEnabledSettingId]: true,
